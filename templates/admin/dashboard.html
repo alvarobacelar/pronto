@@ -1,0 +1,219 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card" style="max-width: 100%;">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;">
+        <h2 style="margin: 0;">Escala Consolidada - {{ mes_str }}</h2>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+
+            <form method="GET" action="{{ url_for('admin_dashboard') }}"
+                style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-left: 0.5rem;">
+                <select name="month_year" onchange="this.form.submit()"
+                    style="width: auto; padding: 0.4rem; font-size: 0.9rem;">
+                    {% for m in lista_meses %}
+                    <option value="{{ m.val }}" {% if my_sel==m.val %}selected{% endif %}>{{ m.nome }}</option>
+                    {% endfor %}
+                </select>
+                <select name="area_id" onchange="this.form.submit()"
+                    style="width: auto; padding: 0.4rem; font-size: 0.9rem;">
+                    {% for area in areas %}
+                    <option value="{{ area.id }}" {% if area_sel==area.id|string %}selected{% endif %}>{{ area.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            {% if grids %}
+            <button onclick="downloadImage()" class="btn btn-secondary"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem; background-color: #a4c4f0;">📸 Imagem</button>
+            <button onclick="downloadExcel()" class="btn btn-secondary"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem; background-color: #10b981;">📊 Planilha</button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if grids %}
+    <div class="table-container">
+        <table class="escala-grid">
+            {% for area_nome, dias in grids.items() %}
+            <thead>
+                <!-- Linha de Cabeçalho da Área -->
+                <tr class="area-header">
+                    <td colspan="{{ 1 + domingos|length * 2 }}">
+                        <strong style="font-size: 1.1rem; color: var(--primary);">Área: {{ area_nome }}</strong>
+                    </td>
+                </tr>
+
+                <!-- Datas -->
+                <tr>
+                    <th class="border-right" style="width: 150px; text-align: center; vertical-align: middle;">{{
+                        mes_str }}</th>
+                    {% for d in domingos %}
+                    <th colspan="2" class="text-center border-right"
+                        style="background-color: #f1f3f4; color: #3c4043; font-weight: bold; font-size: 1rem;">
+                        {{ d.br[:5] }}
+                    </th>
+                    {% endfor %}
+                </tr>
+
+                <!-- Turnos -->
+                <tr>
+                    <th class="border-right"></th>
+                    {% for d in domingos %}
+                    <th class="text-center th-manha">MANHÃ</th>
+                    <th class="text-center th-noite border-right">NOITE</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+
+            <tbody>
+                {% set rows = max_rows[area_nome] %}
+                {% for i in range(rows) %}
+                <tr>
+                    <!-- Primeira Coluna (Responsável ou Equipe) -->
+                    {% if i == 0 %}
+                    <td class="text-center border-right" style="font-weight: bold; background-color: #f8f9fa;">
+                        RESPONSÁVEL DIA</td>
+                    {% elif i == 1 %}
+                    <td rowspan="{{ rows - 1 }}" class="text-center border-right"
+                        style="font-weight: bold; background-color: #ffffff; vertical-align: middle;">EQUIPE</td>
+                    {% endif %}
+
+                    <!-- Células de Voluntários -->
+                    {% for d in domingos %}
+
+                    <!-- Manhã -->
+                    {% set turno_manha = dias[d.iso]["Manhã"] %}
+                    <td class="bg-manha text-center {% if i == 0 %}font-weight-bold cell-responsavel{% endif %}">
+                        {% if i == 0 %}
+                        {% for resp in turno_manha["responsavel"] %}
+                        <div class="cell-content">
+                            <span>{{ resp.nome }}</span>
+                            <form method="POST" action="{{ url_for('delete_escala', id=resp.id) }}"
+                                style="display:inline;"
+                                onsubmit="return confirm('Cancelar agendamento de {{ resp.nome }}?');">
+                                <button type="submit" class="btn-remove-micro" title="Remover">×</button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        {% set idx = i - 1 %}
+                        {% if idx < turno_manha["equipe"]|length %} {% set eq=turno_manha["equipe"][idx] %} <div
+                            class="cell-content">
+                            <span>{{ eq.nome }}</span>
+                            <form method="POST" action="{{ url_for('delete_escala', id=eq.id) }}"
+                                style="display:inline;"
+                                onsubmit="return confirm('Cancelar agendamento de {{ eq.nome }}?');">
+                                <button type="submit" class="btn-remove-micro" title="Remover">×</button>
+                            </form>
+    </div>
+    {% endif %}
+    {% endif %}
+    </td>
+
+    <!-- Noite -->
+    {% set turno_noite = dias[d.iso]["Noite"] %}
+    <td class="bg-noite text-center border-right {% if i == 0 %}font-weight-bold cell-responsavel{% endif %}">
+        {% if i == 0 %}
+        {% for resp in turno_noite["responsavel"] %}
+        <div class="cell-content">
+            <span>{{ resp.nome }}</span>
+            <form method="POST" action="{{ url_for('delete_escala', id=resp.id) }}" style="display:inline;"
+                onsubmit="return confirm('Cancelar agendamento de {{ resp.nome }}?');">
+                <button type="submit" class="btn-remove-micro" title="Remover">×</button>
+            </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        {% set idx = i - 1 %}
+        {% if idx < turno_noite["equipe"]|length %} {% set eq=turno_noite["equipe"][idx] %} <div class="cell-content">
+            <span>{{ eq.nome }}</span>
+            <form method="POST" action="{{ url_for('delete_escala', id=eq.id) }}" style="display:inline;"
+                onsubmit="return confirm('Cancelar agendamento de {{ eq.nome }}?');">
+                <button type="submit" class="btn-remove-micro" title="Remover">×</button>
+            </form>
+</div>
+{% endif %}
+{% endif %}
+</td>
+
+{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
+{% endfor %}
+</table>
+</div>
+{% else %}
+<p class="text-muted">Nenhuma escala encontrada com os filtros atuais.</p>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Bibliotecas para exportação -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+    function downloadImage() {
+        const gridContainer = document.querySelector('.table-container');
+        if (!gridContainer) return;
+
+        // Esconde temporariamente os botões de excluir
+        const btns = gridContainer.querySelectorAll('.btn-remove-micro');
+        const originals = [];
+        btns.forEach(b => {
+            originals.push(b.style.display);
+            b.style.display = 'none';
+        });
+
+        // Para melhor qualidade e garantir que capture tudo com scroll
+        const originalOverflow = gridContainer.style.overflow;
+        gridContainer.style.overflow = 'visible';
+
+        html2canvas(gridContainer.querySelector('.escala-grid'), {
+            scale: 2, // Maior resolução
+            backgroundColor: '#ffffff'
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `Escala_{{ mes_str|replace('/', '-')|replace(' ', '') }}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+
+            // Restaura os botões
+            btns.forEach((b, i) => b.style.display = originals[i]);
+            gridContainer.style.overflow = originalOverflow;
+        }).catch(err => {
+            console.error("Erro ao gerar imagem", err);
+            // Restaura
+            btns.forEach((b, i) => b.style.display = originals[i]);
+            gridContainer.style.overflow = originalOverflow;
+            alert("Erro ao exportar a imagem.");
+        });
+    }
+
+    function downloadExcel() {
+        const grid = document.querySelector('.escala-grid');
+        if (!grid) return;
+
+        // Clona a tabela para remover elementos indesejados sem afetar a tela
+        const clone = grid.cloneNode(true);
+
+        // Remove os formulários inteiros (que contém o X)
+        const forms = clone.querySelectorAll('form');
+        forms.forEach(f => f.remove());
+
+        // Remove as quebras de linha que o javascript insere ao invés de nomes diretos
+        const spans = clone.querySelectorAll('.cell-content span');
+        spans.forEach(s => {
+            s.textContent = s.textContent.trim();
+        });
+
+        const wb = XLSX.utils.table_to_book(clone, { sheet: "Escala" });
+        XLSX.writeFile(wb, `Escala_{{ mes_str|replace('/', '-')|replace(' ', '') }}.xlsx`);
+    }
+</script>
+{% endblock %}

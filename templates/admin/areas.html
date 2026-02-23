@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    <h2>Cadastrar Nova Área</h2>
+    <form method="POST" action="{{ url_for('admin_areas') }}">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+            <div class="form-group">
+                <label for="nome">Nome da Área</label>
+                <input type="text" id="nome" name="nome" placeholder="Ex: Kids, Logística..." required>
+            </div>
+            <div class="form-group">
+                <label for="max_pessoas">Lotação Máx. por Turno</label>
+                <input type="number" id="max_pessoas" name="max_pessoas" min="1" value="1" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Salvar Área</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Áreas Cadastradas ({{ areas|length }})</h2>
+    {% if areas %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome da Área</th>
+                    <th>Limite / Turno</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in areas %}
+                <tr>
+                    <td><strong>{{ a.nome }}</strong></td>
+                    <td>{{ a.max_pessoas }} pessoas</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('delete_area', id=a.id) }}" style="display: inline;"
+                            onsubmit="return confirm('ATENÇÃO: Remover a Área cancelará todos os agendamentos nela. Continuar?');">
+                            <button class="btn btn-danger">Remover</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted">Nenhuma área cadastrada.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Escalas</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+    {% if session.get('admin_logged_in') %}
+    <nav>
+        <div class="nav-container">
+            <h2 style="margin-bottom: 0; font-size: 1.25rem;">Gestão de escala - Admin</h2>
+            <div class="nav-links">
+                <a href="{{ url_for('admin_dashboard') }}">Escalas</a>
+                <a href="{{ url_for('admin_voluntarios') }}">Voluntários</a>
+                <a href="{{ url_for('admin_areas') }}">Áreas</a>
+                <a href="{{ url_for('admin_inativos') }}">Inativos</a>
+                <a href="{{ url_for('admin_logout') }}">Sair</a>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

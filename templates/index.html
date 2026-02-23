@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: var(--primary);">Escala de Voluntários</h1>
+        <p>Digite seu celular para selecionar a área, o dia e o turno para servir.</p>
+    </div>
+
+    <div id="message-container"></div>
+
+    <form id="agendar-form">
+
+        <div id="step-1"
+            style="background: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1.5rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="telefone">Seu Telefone Cadastrado (Apenas Números)</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="tel" id="telefone" name="telefone" placeholder="Ex: 11999999999" required
+                        style="flex: 1;">
+                    <button type="button" class="btn btn-secondary" id="btn-validar"
+                        style="width: auto; padding: 0.5rem 1rem;">Validar</button>
+                </div>
+            </div>
+            <div id="auth-message" style="margin-top: 0.5rem; font-size: 0.9rem; font-weight: 500;"></div>
+        </div>
+
+        <div id="step-2" style="display: none; transition: opacity 0.3s ease;">
+            <div class="form-group">
+                <label for="area_id">Área de Servir</label>
+                <select id="area_id" name="area_id" required>
+                    <option value="" disabled selected>Escolha uma área...</option>
+                </select>
+            </div>
+
+            <div id="resumo-panel" class="resumo-panel" style="display: none; margin-bottom: 1.5rem;">
+                <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase;">
+                    Pessoas Escaladas na Área</p>
+                <div id="resumo-content"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="data">Domingo</label>
+                <select id="data" name="data" required disabled>
+                    <option value="" disabled selected>Escolha a área primeiro...</option>
+                    {% for d in domingos %}
+                    <option value="{{ d.iso }}">{{ d.br }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="turno">Turno</label>
+                <select id="turno" name="turno" required disabled>
+                    <option value="" disabled selected>Escolha a área primeiro...</option>
+                    <option value="Manhã">Manhã</option>
+                    <option value="Noite">Noite</option>
+                </select>
+                <div id="status-vagas"></div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="submit-btn" style="width: 100%;" disabled>Confirmar
+                Escala</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const form = document.getElementById('agendar-form');
+    const telefoneInput = document.getElementById('telefone');
+    const btnValidar = document.getElementById('btn-validar');
+    const authMessage = document.getElementById('auth-message');
+
+    const step2 = document.getElementById('step-2');
+    const areaSelect = document.getElementById('area_id');
+    const dataSelect = document.getElementById('data');
+    const turnoSelect = document.getElementById('turno');
+    const submitBtn = document.getElementById('submit-btn');
+    const statusVagas = document.getElementById('status-vagas');
+    const messageContainer = document.getElementById('message-container');
+    const resumoPanel = document.getElementById('resumo-panel');
+    const resumoContent = document.getElementById('resumo-content');
+
+    // 1. Validar Telefone
+    btnValidar.addEventListener('click', async () => {
+        const telefone = telefoneInput.value.trim();
+        if (!telefone) {
+            authMessage.innerHTML = '<span class="text-danger">Por favor, digite seu telefone.</span>';
+            return;
+        }
+
+        btnValidar.disabled = true;
+        btnValidar.textContent = '...';
+        authMessage.innerHTML = '';
+
+        try {
+            const response = await fetch(`/api/voluntario/areas?telefone=${telefone}`);
+            const data = await response.json();
+
+            if (response.ok) {
+                authMessage.innerHTML = `<span class="text-success">Olá, ${data.nome}!</span>`;
+                telefoneInput.readOnly = true; // Block change after success
+                btnValidar.style.display = 'none'; // Hide button after success
+
+                // Populate Areas
+                areaSelect.innerHTML = '<option value="" disabled selected>Escolha uma área...</option>';
+                if (data.areas.length === 0) {
+                    areaSelect.innerHTML = '<option value="" disabled selected>Você não está associado a nenhuma área.</option>';
+                } else {
+                    data.areas.forEach(a => {
+                        areaSelect.innerHTML += `<option value="${a.id}">${a.nome}</option>`;
+                    });
+                }
+
+                // Show Step 2
+                step2.style.display = 'block';
+            } else {
+                authMessage.innerHTML = `<span class="text-danger">${data.message}</span>`;
+                step2.style.display = 'none';
+            }
+        } catch (e) {
+            authMessage.innerHTML = '<span class="text-danger">Erro ao validar. Tente novamente.</span>';
+            step2.style.display = 'none';
+        } finally {
+            btnValidar.disabled = false;
+            btnValidar.textContent = 'Validar';
+        }
+    });
+
+    // Validar também ao apertar Enter no input de telefone
+    telefoneInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            btnValidar.click();
+        }
+    });
+
+    // 2. Controlar fluxo das Selects dependentes
+    function checkCompleteness() {
+        if (areaSelect.value !== '') {
+            dataSelect.disabled = false;
+            turnoSelect.disabled = false;
+        } else {
+            dataSelect.disabled = true;
+            turnoSelect.disabled = true;
+            submitBtn.disabled = true;
+        }
+
+        if (areaSelect.value !== '' && dataSelect.value !== '' && turnoSelect.value !== '') {
+            fetchVagas();
+        } else {
+            submitBtn.disabled = true;
+            statusVagas.innerHTML = '';
+        }
+    }
+
+    async function fetchResumo() {
+        if (areaSelect.value === '') {
+            resumoPanel.style.display = 'none';
+            return;
+        }
+
+        resumoContent.innerHTML = '<span class="text-muted">Carregando previsão de escalas...</span>';
+        resumoPanel.style.display = 'block';
+
+        try {
+            const response = await fetch(`/api/resumo_vagas?area_id=${areaSelect.value}`);
+            const data = await response.json();
+
+            if (data.error) throw new Error(data.error);
+
+            let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 0.5rem;">`;
+
+            data.domingos.forEach(domin => {
+                const getStatus = (escalados, maximo) => {
+                    if (escalados >= maximo) return `<span style="color:var(--danger); font-size: 0.75rem; font-weight:bold;">LOTADO (${escalados})</span>`;
+                    return `<span style="color:var(--primary); font-size: 0.75rem; font-weight:bold;">${escalados} equipe</span>`;
+                }
+                const getStatusResponsavel = (escalados, maximo) => {
+                    if (escalados >= maximo) return `<span style="color:var(--danger); font-size: 0.75rem; font-weight:bold;">LOTADO (${escalados})</span>`;
+                    return `<span style="color:var(--primary); font-size: 0.75rem; font-weight:bold;">${escalados} responsável</span>`;
+                }
+
+                html += `
+                <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; text-align: center;">
+                    <div style="font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">${domin.br}</div>
+                    <div style="font-size: 0.75rem; margin-bottom: 2px;">Manhã</div>
+                    ${getStatusResponsavel(domin.manha_responsavel, data.max_pessoas)}<br/>
+                    ${getStatus(domin.manha_escalados, data.max_pessoas)}    
+                    <div style="font-size: 0.75rem; margin-top: 4px; margin-bottom: 2px;">Noite</div>
+                    ${getStatusResponsavel(domin.noite_responsavel, data.max_pessoas)}<br/>
+                    ${getStatus(domin.noite_escalados, data.max_pessoas)}
+                </div>`;
+            });
+            html += `</div>`;
+            resumoContent.innerHTML = html;
+        } catch (e) {
+            resumoContent.innerHTML = '<span class="text-danger">Não foi possível carregar a previsão.</span>';
+        }
+    }
+
+    async function fetchVagas() {
+        if (areaSelect.value === '' || dataSelect.value === '' || turnoSelect.value === '') return;
+
+        statusVagas.innerHTML = '<span class="text-muted">Verificando vagas...</span>';
+        submitBtn.disabled = true;
+
+        try {
+            const params = new URLSearchParams({
+                area_id: areaSelect.value,
+                data: dataSelect.value,
+                turno: turnoSelect.value
+            });
+            const response = await fetch(`/api/vagas?${params}`);
+            const data = await response.json();
+
+            if (data.lotado) {
+                statusVagas.innerHTML = '<span class="text-danger">Lotado (Vagas esgotadas)</span>';
+                submitBtn.disabled = true;
+            } else {
+                statusVagas.innerHTML = `<span class="text-success">${data.vagas_disponiveis} vaga(s) disponível(is)</span>`;
+                submitBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error(err);
+            statusVagas.innerHTML = '<span class="text-danger">Erro ao verificar vagas.</span>';
+        }
+    }
+
+    areaSelect.addEventListener('change', () => {
+        checkCompleteness();
+        fetchResumo();
+    });
+    dataSelect.addEventListener('change', checkCompleteness);
+    turnoSelect.addEventListener('change', checkCompleteness);
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando...';
+        messageContainer.innerHTML = '';
+
+        const formData = new FormData(form);
+
+        try {
+            const response = await fetch('/agendar', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                messageContainer.innerHTML = `<div class="alert alert-success">${result.message}</div>`;
+                form.reset();
+
+                // Reset states
+                step2.style.display = 'none';
+                btnValidar.style.display = 'block';
+                telefoneInput.readOnly = false;
+                authMessage.innerHTML = '';
+                resumoPanel.style.display = 'none';
+                statusVagas.innerHTML = '';
+            } else {
+                messageContainer.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
+            }
+        } catch (err) {
+            messageContainer.innerHTML = `<div class="alert alert-danger">Erro no servidor. Tente novamente mais tarde.</div>`;
+        } finally {
+            submitBtn.textContent = 'Confirmar Escala';
+            checkCompleteness();
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card" style="max-width: 100%;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <div>
+            <h2 style="margin-bottom: 0.5rem;">Relatório de Inativos</h2>
+            <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
+                Voluntários que estão há <strong>mais de 2 meses</strong> (desde {{ data_limite.strftime('%d/%m/%Y') }})
+                sem serem escalados para nenhuma área.
+            </p>
+        </div>
+        <div
+            style="background-color: var(--danger); color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: bold;">
+            {{ inativos|length }} Inativos
+        </div>
+    </div>
+
+    {% if inativos %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Telefone</th>
+                    <th>Líder/Responsável</th>
+                    <th>Última Participação</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in inativos %}
+                <tr>
+                    <td>{{ v.nome }}</td>
+                    <td><a href="https://wa.me/55{{ v.telefone }}" target="_blank"
+                            style="color: var(--primary); text-decoration: none;">{{ v.telefone }}</a></td>
+                    <td>{% if v.responsavel %}<span class="badge"
+                            style="background-color: #d1fae5; color: #065f46;">Sim</span>{% else %}Não{% endif %}</td>
+                    <td>
+                        {% if v.ultima_escala %}
+                        <span class="badge bg-secondary" style="font-size: 0.85rem;">{{ v.ultima_escala|data_br
+                            }}</span>
+                        {% else %}
+                        <span class="text-muted" style="font-style: italic; font-size: 0.85rem;">Nunca escalado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="{{ url_for('delete_voluntario', id=v.id) }}"
+                            style="display: inline;"
+                            onsubmit="return confirm('Remover definitivamente este voluntário do sistema?');">
+                            <button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Remover
+                                do Banco</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div
+        style="text-align: center; padding: 3rem 1rem; background-color: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 1rem;">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <p style="color: #64748b; font-size: 1.1rem; margin: 0;">Excelente! Todos os voluntários estão ativos nos
+            últimos 2 meses.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
