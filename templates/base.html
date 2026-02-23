@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Escalas</title>
+    <title>Pronto - Escala de Voluntários</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +18,7 @@
     {% if session.get('admin_logged_in') %}
     <nav>
         <div class="nav-container">
-            <h2 style="margin-bottom: 0; font-size: 1.25rem;">Gestão de escala - Admin</h2>
+            <h2 style="margin-bottom: 0; font-size: 1.25rem;">Pronto - Admin</h2>
             <div class="nav-links">
                 <a href="{{ url_for('admin_dashboard') }}">Escalas</a>
                 <a href="{{ url_for('admin_voluntarios') }}">Voluntários</a>
@@ -44,5 +44,13 @@
 
     {% block scripts %}{% endblock %}
 </body>
+
+<footer
+    style="margin-top: 0rem; text-align: center; color: #64748b; font-size: 0.8rem; line-height: 1.6; max-width: 600px; margin-left: auto; margin-right: auto; padding-bottom: 2rem;">
+    <p>O <strong>Pronto</strong> é o espaço de resposta do voluntário da Livres Church. Mais do que uma escala, é a
+        nossa prontidão em servir ao Reino, organizando nossos talentos e disponibilidade para que a Casa do Pai esteja
+        sempre pronta para receber a todos.</p>
+    <p>2026 - Livres Church - (11) 98485-1111 - secretaria@livres.church</p>
+</footer>
 
 </html>
