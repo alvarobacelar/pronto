@@ -13,9 +13,9 @@ DB_CONFIG = {
     "charset": 'utf8mb4',
     "cursorclass": pymysql.cursors.DictCursor,
     "autocommit": True,
-    "ssl": {}, 
     "client_flag": pymysql.constants.CLIENT.PLUGIN_AUTH,
-    "auth_plugin": 'caching_sha2_password'
+    "ssl_disabled": False,
+    "ssl": {'check_hostname': False}
 }
 
 def get_db_connection():
