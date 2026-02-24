@@ -12,7 +12,9 @@ DB_CONFIG = {
     "database": os.environ.get('DB_NAME', 'escala'),
     "charset": 'utf8mb4',
     "cursorclass": pymysql.cursors.DictCursor,
-    "autocommit": True
+    "autocommit": True,
+    "ssl": {}, 
+    "client_flag": pymysql.constants.CLIENT.PLUGIN_AUTH
 }
 
 def get_db_connection():
