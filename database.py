@@ -9,7 +9,8 @@ def get_db_connection():
         password=os.getenv("DB_PASSWORD", "password"),
         database=os.getenv("DB_NAME", "escala"),
         charset='utf8mb4',
-        collation='utf8mb4_general_ci'
+        collation='utf8mb4_general_ci',
+        auth_plugin='caching_sha2_password'
     )
     return conn
 
