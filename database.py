@@ -1,11 +1,16 @@
-import sqlite3
 import os
+import mysql.connector
 
-DATABASE_URL = "escala.db"
-
+ 
 def get_db_connection():
-    conn = sqlite3.connect(DATABASE_URL)
-    conn.row_factory = sqlite3.Row
+    conn = mysql.connector.connect(
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", "password"),
+        database=os.getenv("DB_NAME", "escala"),
+        charset='utf8mb4',
+        collation='utf8mb4_general_ci'
+    )
     return conn
 
 def init_db():
@@ -15,18 +20,18 @@ def init_db():
     # Tabela de áreas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS areas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            max_pessoas INTEGER NOT NULL
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            max_pessoas INT NOT NULL
         )
     ''')
     
     # Tabela de voluntários
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS voluntarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            telefone TEXT NOT NULL UNIQUE,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            telefone VARCHAR(20) NOT NULL UNIQUE,
             responsavel BOOLEAN DEFAULT 0
         )
     ''')
@@ -34,20 +39,21 @@ def init_db():
     # Tabela de escalas
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS escalas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            voluntario_id INTEGER NOT NULL,
-            area_id INTEGER NOT NULL,
-            data TEXT NOT NULL,
-            turno TEXT NOT NULL,
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            voluntario_id INT NOT NULL,
+            area_id INT NOT NULL,
+            data DATE NOT NULL,
+            turno VARCHAR(50) NOT NULL,
             FOREIGN KEY (voluntario_id) REFERENCES voluntarios (id),
             FOREIGN KEY (area_id) REFERENCES areas (id)
         )
     ''')
+    
     # Tabela de relação voluntário-área
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS voluntario_areas (
-            voluntario_id INTEGER NOT NULL,
-            area_id INTEGER NOT NULL,
+            voluntario_id INT NOT NULL,
+            area_id INT NOT NULL,
             PRIMARY KEY (voluntario_id, area_id),
             FOREIGN KEY (voluntario_id) REFERENCES voluntarios (id) ON DELETE CASCADE,
             FOREIGN KEY (area_id) REFERENCES areas (id) ON DELETE CASCADE
@@ -55,6 +61,7 @@ def init_db():
     ''')
     
     conn.commit()
+    cursor.close()
     conn.close()
 
 if __name__ == '__main__':

@@ -42,7 +42,10 @@ def check_auth():
 @app.route('/')
 def index():
     conn = get_db_connection()
-    areas = conn.execute('SELECT * FROM areas').fetchall()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM areas')
+    areas = cursor.fetchall()
+    cursor.close()
     conn.close()
     
     hoje = datetime.now()
@@ -60,51 +63,60 @@ def agendar():
     turno = request.form.get('turno')
     
     conn = get_db_connection()
+
+    cursor = conn.cursor(dictionary=True)
     
     # 1. Validar se o voluntário existe
-    voluntario = conn.execute('SELECT * FROM voluntarios WHERE telefone = ?', (telefone,)).fetchone()
+    #voluntario = cursor.execute('SELECT * FROM voluntarios WHERE telefone = %s', (telefone,)).fetchone()
+    cursor.execute('SELECT * FROM voluntarios WHERE telefone = %s', (telefone,))
+    voluntario = cursor.fetchone()
+
     if not voluntario:
         conn.close()
         return jsonify({"status": "error", "message": "Voluntário não cadastrado no sistema."}), 400
         
     # 1.5 Validar se pertence à área
-    pertence = conn.execute('SELECT 1 FROM voluntario_areas WHERE voluntario_id = ? AND area_id = ?', (voluntario['id'], area_id)).fetchone()
+    cursor.execute('SELECT 1 FROM voluntario_areas WHERE voluntario_id = %s AND area_id = %s', (voluntario['id'], area_id))
+    pertence = cursor.fetchone()
     if not pertence:
         conn.close()
         return jsonify({"status": "error", "message": "Você não está habilitado(a) para servir nesta área."}), 400
         
     # 2. Validar limite de vagas
-    area = conn.execute('SELECT * FROM areas WHERE id = ?', (area_id,)).fetchone()
+    cursor.execute('SELECT * FROM areas WHERE id = %s', (area_id,))
+    area = cursor.fetchone()
     if not area:
         conn.close()
         return jsonify({"status": "error", "message": "Área inválida."}), 400
         
     max_pessoas = area['max_pessoas']
     
-    agendados = conn.execute('''
+    cursor.execute('''
         SELECT count(e.id) as count FROM escalas e
         JOIN voluntarios v ON e.voluntario_id = v.id
-        WHERE e.area_id = ? AND e.data = ? AND e.turno = ? AND (v.responsavel = 0 OR v.responsavel IS NULL)
-    ''', (area_id, data, turno)).fetchone()['count']
+        WHERE e.area_id = %s AND e.data = %s AND e.turno = %s AND (v.responsavel = 0 OR v.responsavel IS NULL)
+    ''', (area_id, data, turno))
+    agendados = cursor.fetchone()['count']
     
     if agendados >= max_pessoas:
         conn.close()
         return jsonify({"status": "error", "message": "Vagas esgotadas para esta área/turno."}), 400
         
     # 3. Validar se já está agendado para o mesmo turno e data
-    ja_agendado = conn.execute('''
+    cursor.execute('''
         SELECT id FROM escalas 
-        WHERE voluntario_id = ? AND data = ? AND turno = ?
-    ''', (voluntario['id'], data, turno)).fetchone()
+        WHERE voluntario_id = %s AND data = %s AND turno = %s
+    ''', (voluntario['id'], data, turno))
+    ja_agendado = cursor.fetchone()
     
     if ja_agendado:
          conn.close()
          return jsonify({"status": "error", "message": "Você já está escalado(a) neste dia e turno."}), 400
     
     # 4. Inserir Escala
-    conn.execute('''
+    cursor.execute('''
         INSERT INTO escalas (voluntario_id, area_id, data, turno)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s)
     ''', (voluntario['id'], area_id, data, turno))
     conn.commit()
     conn.close()
@@ -118,18 +130,21 @@ def get_voluntario_areas():
         return jsonify({"status": "error", "message": "Telefone não informado."}), 400
         
     conn = get_db_connection()
-    voluntario = conn.execute('SELECT id, nome FROM voluntarios WHERE telefone = ?', (telefone,)).fetchone()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT id, nome FROM voluntarios WHERE telefone = %s', (telefone,))
+    voluntario = cursor.fetchone()
     
     if not voluntario:
         conn.close()
         return jsonify({"status": "error", "message": "Voluntário não cadastrado."}), 404
         
-    areas = conn.execute('''
+    cursor.execute('''
         SELECT a.id, a.nome 
         FROM areas a
         JOIN voluntario_areas va ON a.id = va.area_id
-        WHERE va.voluntario_id = ?
-    ''', (voluntario['id'],)).fetchall()
+        WHERE va.voluntario_id = %s
+    ''', (voluntario['id'],))
+    areas = cursor.fetchall()
     
     conn.close()
     
@@ -147,16 +162,19 @@ def check_vagas():
     turno = request.args.get('turno')
     
     conn = get_db_connection()
-    area = conn.execute('SELECT max_pessoas FROM areas WHERE id = ?', (area_id,)).fetchone()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT max_pessoas FROM areas WHERE id = %s', (area_id,))
+    area = cursor.fetchone()
     if not area:
         conn.close()
         return jsonify({"vagas_disponiveis": 0, "lotado": True})
         
-    agendados = conn.execute('''
+    cursor.execute('''
         SELECT count(e.id) as count FROM escalas e
         JOIN voluntarios v ON e.voluntario_id = v.id
-        WHERE e.area_id = ? AND e.data = ? AND e.turno = ? AND (v.responsavel = 0 OR v.responsavel IS NULL)
-    ''', (area_id, data, turno)).fetchone()['count']
+        WHERE e.area_id = %s AND e.data = %s AND e.turno = %s AND (v.responsavel = 0 OR v.responsavel IS NULL)
+    ''', (area_id, data, turno))
+    agendados = cursor.fetchone()['count']
     conn.close()
     
     vagas_livres = area['max_pessoas'] - agendados
@@ -176,7 +194,9 @@ def resumo_vagas():
     prox_ano = hoje.year if hoje.month < 12 else hoje.year + 1
     
     conn = get_db_connection()
-    area = conn.execute('SELECT max_pessoas FROM areas WHERE id = ?', (area_id,)).fetchone()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT max_pessoas FROM areas WHERE id = %s', (area_id,))
+    area = cursor.fetchone()
     if not area:
         conn.close()
         return jsonify({"error": "Area not found"})
@@ -187,19 +207,21 @@ def resumo_vagas():
         SELECT e.data, e.turno, count(e.id) as total
         FROM escalas e
         JOIN voluntarios v ON e.voluntario_id = v.id
-        WHERE e.area_id = ? AND e.data LIKE ? AND (v.responsavel = 0 OR v.responsavel IS NULL)
+        WHERE e.area_id = %s AND e.data LIKE %s AND (v.responsavel = 0 OR v.responsavel IS NULL)
         GROUP BY e.data, e.turno
     '''
     query_responsavel = '''
         SELECT e.data, e.turno, count(e.id) as total
         FROM escalas e
         JOIN voluntarios v ON e.voluntario_id = v.id
-        WHERE e.area_id = ? AND e.data LIKE ? AND (v.responsavel = 1 OR v.responsavel IS NULL)
+        WHERE e.area_id = %s AND e.data LIKE %s AND (v.responsavel = 1 OR v.responsavel IS NULL)
         GROUP BY e.data, e.turno
     '''
     params = (area_id, f"{prox_ano}-{prox_mes:02d}-%")
-    agrupado = conn.execute(query, params).fetchall()
-    agrupado_responsavel = conn.execute(query_responsavel, params).fetchall()
+    cursor.execute(query, params)
+    agrupado = cursor.fetchall()
+    cursor.execute(query_responsavel, params)
+    agrupado_responsavel = cursor.fetchall()
     conn.close()
     
     resultado = {}
@@ -256,7 +278,7 @@ def admin_login():
 @app.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged_in', None)
-    return redirect(url_for('admin_login'))
+    return redirect(url_for('index'))
 
 @app.route('/admin')
 def admin_dashboard():
@@ -276,9 +298,12 @@ def admin_dashboard():
         ano, mes = hoje.year, hoje.month
         
     conn = get_db_connection()
-    areas = conn.execute('SELECT * FROM areas').fetchall()
+    cursor = conn.cursor(dictionary=True)
     
-    # Se não houver filtro de área e existirem áreas, seleciona a primeira
+    # Busca áreas
+    cursor.execute('SELECT * FROM areas')
+    areas = cursor.fetchall()
+    
     if not area_filter and areas:
         area_filter = str(areas[0]['id'])
     
@@ -289,18 +314,20 @@ def admin_dashboard():
         FROM escalas e
         JOIN voluntarios v ON e.voluntario_id = v.id
         JOIN areas a ON e.area_id = a.id
-        WHERE e.data LIKE ?
+        WHERE e.data LIKE %s
     '''
     params = [f"{ano}-{mes:02d}-%"]
     
     if area_filter:
-        query += ' AND e.area_id = ?'
+        query += ' AND e.area_id = %s'
         params.append(area_filter)
         
-    # Ordene também por responsavel DESC (1 primeiro, 0 depois) para que os responsáveis fiquem nas primeiras posições de cada turno
     query += ' ORDER BY a.nome ASC, e.data ASC, e.turno ASC, v.responsavel DESC, v.nome ASC'
     
-    escalas = conn.execute(query, params).fetchall()
+    cursor.execute(query, params)
+    escalas = cursor.fetchall()
+    
+    cursor.close()
     conn.close()
     
     grids = {}
@@ -312,29 +339,28 @@ def admin_dashboard():
     for e in escalas:
         area_n = e['area_nome']
         d_iso = e['data']
+        d_iso_str = d_iso.strftime('%Y-%m-%d') if hasattr(d_iso, 'strftime') else d_iso
+        
         turno = e['turno']
         is_resp = e['responsavel']
-        if area_n in grids and d_iso in grids[area_n]:
+        if area_n in grids and d_iso_str in grids[area_n]:
             if is_resp:
-                grids[area_n][d_iso][turno]["responsavel"].append({"id": e['id'], "nome": e['voluntario_nome']})
+                grids[area_n][d_iso_str][turno]["responsavel"].append({"id": e['id'], "nome": e['voluntario_nome']})
             else:
-                grids[area_n][d_iso][turno]["equipe"].append({"id": e['id'], "nome": e['voluntario_nome']})
+                grids[area_n][d_iso_str][turno]["equipe"].append({"id": e['id'], "nome": e['voluntario_nome']})
             
     max_rows = {}
     for area_n, dias in grids.items():
         m_len = 0
         for d_iso, turnos in dias.items():
             m_len = max(m_len, len(turnos["Manhã"]["equipe"]), len(turnos["Noite"]["equipe"]))
-        # Pelo menos 2 linhas (1 para o Responsável, 1 para Equipe).
         max_rows[area_n] = max(m_len + 1, 2)
         
     meses_nomes = ["", "janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
     mes_str = f"{meses_nomes[mes]} / {ano}"
     
     lista_meses = []
-    # Meses para o filtro (2 atrás, 10 na frente)
     curr_dt = datetime(hoje.year, hoje.month, 1)
-    # Voltar 2 meses
     for _ in range(2):
         if curr_dt.month == 1:
             curr_dt = datetime(curr_dt.year - 1, 12, 1)
@@ -360,12 +386,12 @@ def admin_dashboard():
                             lista_meses=lista_meses,
                             my_sel=my_sel,
                             area_sel=area_filter)
-
 @app.route('/admin/voluntarios', methods=['GET', 'POST'])
 def admin_voluntarios():
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
     if request.method == 'POST':
         nome = request.form.get('nome')
         telefone = request.form.get('telefone')
@@ -373,11 +399,11 @@ def admin_voluntarios():
         areas_selecionadas = request.form.getlist('areas')
         
         try:
-            cursor = conn.execute('INSERT INTO voluntarios (nome, telefone, responsavel) VALUES (?, ?, ?)', (nome, telefone, responsavel))
+            cursor.execute('INSERT INTO voluntarios (nome, telefone, responsavel) VALUES (%s, %s, %s)', (nome, telefone, responsavel))
             voluntario_id = cursor.lastrowid
             
             for area_id in areas_selecionadas:
-                conn.execute('INSERT INTO voluntario_areas (voluntario_id, area_id) VALUES (?, ?)', (voluntario_id, int(area_id)))
+                cursor.execute('INSERT INTO voluntario_areas (voluntario_id, area_id) VALUES (%s, %s)', (voluntario_id, int(area_id)))
                 
             conn.commit()
             flash('Voluntário cadastrado.', 'success')
@@ -392,8 +418,10 @@ def admin_voluntarios():
         GROUP BY v.id
         ORDER BY v.responsavel DESC, v.nome ASC
     '''
-    voluntarios = conn.execute(query).fetchall()
-    areas = conn.execute('SELECT * FROM areas ORDER BY nome ASC').fetchall()
+    cursor.execute(query)
+    voluntarios = cursor.fetchall()
+    cursor.execute('SELECT * FROM areas ORDER BY nome ASC')
+    areas = cursor.fetchall()
     conn.close()
     return render_template('admin/voluntarios.html', voluntarios=voluntarios, areas=areas)
 
@@ -401,9 +429,10 @@ def admin_voluntarios():
 def delete_voluntario(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     conn = get_db_connection()
-    conn.execute('DELETE FROM escalas WHERE voluntario_id = ?', (id,))
-    conn.execute('DELETE FROM voluntario_areas WHERE voluntario_id = ?', (id,))
-    conn.execute('DELETE FROM voluntarios WHERE id = ?', (id,))
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('DELETE FROM escalas WHERE voluntario_id = %s', (id,))
+    cursor.execute('DELETE FROM voluntario_areas WHERE voluntario_id = %s', (id,))
+    cursor.execute('DELETE FROM voluntarios WHERE id = %s', (id,))
     conn.commit()
     conn.close()
     flash('Voluntário removido.', 'success')
@@ -414,7 +443,9 @@ def edit_voluntario(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
-    voluntario = conn.execute('SELECT * FROM voluntarios WHERE id = ?', (id,)).fetchone()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM voluntarios WHERE id = %s', (id,))
+    voluntario = cursor.fetchone()
     
     if not voluntario:
         conn.close()
@@ -428,11 +459,11 @@ def edit_voluntario(id):
         areas_selecionadas = request.form.getlist('areas')
         
         try:
-            conn.execute('UPDATE voluntarios SET nome = ?, telefone = ?, responsavel = ? WHERE id = ?', (nome, telefone, responsavel, id))
-            conn.execute('DELETE FROM voluntario_areas WHERE voluntario_id = ?', (id,))
+            cursor.execute('UPDATE voluntarios SET nome = %s, telefone = %s, responsavel = %s WHERE id = %s', (nome, telefone, responsavel, id))
+            cursor.execute('DELETE FROM voluntario_areas WHERE voluntario_id = %s', (id,))
             
             for area_id in areas_selecionadas:
-                conn.execute('INSERT INTO voluntario_areas (voluntario_id, area_id) VALUES (?, ?)', (id, int(area_id)))
+                cursor.execute('INSERT INTO voluntario_areas (voluntario_id, area_id) VALUES (%s, %s)', (id, int(area_id)))
                 
             conn.commit()
             flash('Voluntário atualizado.', 'success')
@@ -442,10 +473,12 @@ def edit_voluntario(id):
             flash('Telefone já cadastrado por outro voluntário.', 'danger')
             
     # GET: Buscar áreas do voluntário
-    va = conn.execute('SELECT area_id FROM voluntario_areas WHERE voluntario_id = ?', (id,)).fetchall()
+    cursor.execute('SELECT area_id FROM voluntario_areas WHERE voluntario_id = %s', (id,))
+    va = cursor.fetchall()
     voluntario_areas_ids = [r['area_id'] for r in va]
     
-    areas = conn.execute('SELECT * FROM areas ORDER BY nome ASC').fetchall()
+    cursor.execute('SELECT * FROM areas ORDER BY nome ASC')
+    areas = cursor.fetchall()
     conn.close()
     
     return render_template('admin/voluntario_edit.html', voluntario=voluntario, voluntario_areas_ids=voluntario_areas_ids, areas=areas)
@@ -455,6 +488,7 @@ def admin_inativos():
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
     
     hoje = datetime.now()
     # Pega aproximadamente os 60 dias passados como limite de tolerância
@@ -469,12 +503,12 @@ def admin_inativos():
         WHERE v.id NOT IN (
             SELECT DISTINCT voluntario_id 
             FROM escalas 
-            WHERE data >= ?
+            WHERE data >= %s
         )
         ORDER BY ultima_escala DESC, v.nome ASC
     '''
-    
-    inativos = conn.execute(query, (data_limite_iso,)).fetchall()
+    cursor.execute(query, (data_limite_iso,))
+    inativos = cursor.fetchall()
     conn.close()
     
     return render_template('admin/inativos.html', inativos=inativos, data_limite=limite)
@@ -484,14 +518,16 @@ def admin_areas():
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
     if request.method == 'POST':
         nome = request.form.get('nome')
         max_pessoas = request.form.get('max_pessoas')
-        conn.execute('INSERT INTO areas (nome, max_pessoas) VALUES (?, ?)', (nome, int(max_pessoas)))
+        cursor.execute('INSERT INTO areas (nome, max_pessoas) VALUES (%s, %s)', (nome, int(max_pessoas)))
         conn.commit()
         flash('Área cadastrada.', 'success')
         
-    areas = conn.execute('SELECT * FROM areas').fetchall()
+    cursor.execute('SELECT * FROM areas')
+    areas = cursor.fetchall()
     conn.close()
     return render_template('admin/areas.html', areas=areas)
     
@@ -499,9 +535,10 @@ def admin_areas():
 def delete_area(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     conn = get_db_connection()
-    conn.execute('DELETE FROM escalas WHERE area_id = ?', (id,))
-    conn.execute('DELETE FROM voluntario_areas WHERE area_id = ?', (id,))
-    conn.execute('DELETE FROM areas WHERE id = ?', (id,))
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('DELETE FROM escalas WHERE area_id = %s', (id,))
+    cursor.execute('DELETE FROM voluntario_areas WHERE area_id = %s', (id,))
+    cursor.execute('DELETE FROM areas WHERE id = %s', (id,))
     conn.commit()
     conn.close()
     flash('Área removida.', 'success')
@@ -511,11 +548,12 @@ def delete_area(id):
 def delete_escala(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     conn = get_db_connection()
-    conn.execute('DELETE FROM escalas WHERE id = ?', (id,))
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('DELETE FROM escalas WHERE id = %s', (id,))
     conn.commit()
     conn.close()
     flash('Agendamento cancelado.', 'success')
     return redirect(request.referrer or url_for('admin_dashboard'))
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5001)
