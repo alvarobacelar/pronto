@@ -195,10 +195,13 @@ def resumo_vagas():
     
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    
     cursor.execute('SELECT max_pessoas FROM areas WHERE id = %s', (area_id,))
     area = cursor.fetchone()
     if not area:
+        cursor.close()
         conn.close()
+        app.logger.error("Area not found")
         return jsonify({"error": "Area not found"})
         
     max_p = area['max_pessoas']
@@ -214,30 +217,34 @@ def resumo_vagas():
         SELECT e.data, e.turno, count(e.id) as total
         FROM escalas e
         JOIN voluntarios v ON e.voluntario_id = v.id
-        WHERE e.area_id = %s AND e.data LIKE %s AND (v.responsavel = 1 OR v.responsavel IS NULL)
+        WHERE e.area_id = %s AND e.data LIKE %s AND v.responsavel = 1
         GROUP BY e.data, e.turno
     '''
+    
     params = (area_id, f"{prox_ano}-{prox_mes:02d}-%")
+    
     cursor.execute(query, params)
     agrupado = cursor.fetchall()
+    
     cursor.execute(query_responsavel, params)
     agrupado_responsavel = cursor.fetchall()
-    conn.close()
     
     resultado = {}
     for r in agrupado:
-        d = r['data']
+        d = r['data'].strftime('%Y-%m-%d') if hasattr(r['data'], 'strftime') else str(r['data'])
         t = r['turno']
         resultado.setdefault(d, {})[t] = r['total']
 
     resultado_responsavel = {}
     for r in agrupado_responsavel:
-        d = r['data']
+        d = r['data'].strftime('%Y-%m-%d') if hasattr(r['data'], 'strftime') else str(r['data'])
         t = r['turno']
         resultado_responsavel.setdefault(d, {})[t] = r['total']
         
     domingos = get_domingos_mes(prox_ano, prox_mes)
     resumo_final = []
+
+    app.logger.info(f"Dicionário Resultado: {resultado}")
     
     for dom in domingos:
         d_iso = dom['iso']
@@ -258,7 +265,9 @@ def resumo_vagas():
             "manha_livres": max(0, max_p - manha_esc),
             "noite_livres": max(0, max_p - noite_esc)
         })
-        
+    
+    cursor.close()
+    conn.close()
     return jsonify({"max_pessoas": max_p, "domingos": resumo_final})
 
 # --- Rotas Administrativas ---
@@ -556,4 +565,4 @@ def delete_escala(id):
     return redirect(request.referrer or url_for('admin_dashboard'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001)

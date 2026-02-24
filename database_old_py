@@ -1,0 +1,83 @@
+import os
+import mysql.connector
+
+ 
+def get_db_connection():
+    # conn = mysql.connector.connect(
+    #     host=os.getenv("DB_HOST", "127.0.0.1"),
+    #     user=os.getenv("DB_USER", "root"),
+    #     password=os.getenv("DB_PASSWORD", "password"),
+    #     database=os.getenv("DB_NAME", "escala"),
+    #     charset='utf8mb4',
+    #     collation='utf8mb4_general_ci',
+    #     auth_plugin='caching_sha2_password'
+    # )
+    # return conn
+
+    db_pool = mysql.connector.pooling.MySQLConnectionPool(
+        pool_name="escala_pool",
+        pool_size=5, 
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        user=os.getenv("DB_USER", "root"),
+        password=os.getenv("DB_PASSWORD", "password"),
+        database=os.getenv("DB_NAME", "escala"),
+        charset='utf8mb4',
+        collation='utf8mb4_general_ci',
+        auth_plugin='caching_sha2_password'
+    )
+    return db_pool
+
+def init_db():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Tabela de áreas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS areas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            max_pessoas INT NOT NULL
+        )
+    ''')
+    
+    # Tabela de voluntários
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS voluntarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            telefone VARCHAR(20) NOT NULL UNIQUE,
+            responsavel BOOLEAN DEFAULT 0
+        )
+    ''')
+    
+    # Tabela de escalas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS escalas (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            voluntario_id INT NOT NULL,
+            area_id INT NOT NULL,
+            data DATE NOT NULL,
+            turno VARCHAR(50) NOT NULL,
+            FOREIGN KEY (voluntario_id) REFERENCES voluntarios (id),
+            FOREIGN KEY (area_id) REFERENCES areas (id)
+        )
+    ''')
+    
+    # Tabela de relação voluntário-área
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS voluntario_areas (
+            voluntario_id INT NOT NULL,
+            area_id INT NOT NULL,
+            PRIMARY KEY (voluntario_id, area_id),
+            FOREIGN KEY (voluntario_id) REFERENCES voluntarios (id) ON DELETE CASCADE,
+            FOREIGN KEY (area_id) REFERENCES areas (id) ON DELETE CASCADE
+        )
+    ''')
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+if __name__ == '__main__':
+    init_db()
+    print("Banco de dados inicializado com sucesso.")
