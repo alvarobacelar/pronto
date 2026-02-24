@@ -42,7 +42,7 @@ def check_auth():
 @app.route('/')
 def index():
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('SELECT * FROM areas')
     areas = cursor.fetchall()
     cursor.close()
@@ -64,7 +64,7 @@ def agendar():
     
     conn = get_db_connection()
 
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     
     # 1. Validar se o voluntário existe
     #voluntario = cursor.execute('SELECT * FROM voluntarios WHERE telefone = %s', (telefone,)).fetchone()
@@ -130,7 +130,7 @@ def get_voluntario_areas():
         return jsonify({"status": "error", "message": "Telefone não informado."}), 400
         
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('SELECT id, nome FROM voluntarios WHERE telefone = %s', (telefone,))
     voluntario = cursor.fetchone()
     
@@ -162,7 +162,7 @@ def check_vagas():
     turno = request.args.get('turno')
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('SELECT max_pessoas FROM areas WHERE id = %s', (area_id,))
     area = cursor.fetchone()
     if not area:
@@ -194,7 +194,7 @@ def resumo_vagas():
     prox_ano = hoje.year if hoje.month < 12 else hoje.year + 1
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     
     cursor.execute('SELECT max_pessoas FROM areas WHERE id = %s', (area_id,))
     area = cursor.fetchone()
@@ -307,7 +307,7 @@ def admin_dashboard():
         ano, mes = hoje.year, hoje.month
         
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     
     # Busca áreas
     cursor.execute('SELECT * FROM areas')
@@ -400,7 +400,7 @@ def admin_voluntarios():
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     if request.method == 'POST':
         nome = request.form.get('nome')
         telefone = request.form.get('telefone')
@@ -438,7 +438,7 @@ def admin_voluntarios():
 def delete_voluntario(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('DELETE FROM escalas WHERE voluntario_id = %s', (id,))
     cursor.execute('DELETE FROM voluntario_areas WHERE voluntario_id = %s', (id,))
     cursor.execute('DELETE FROM voluntarios WHERE id = %s', (id,))
@@ -452,7 +452,7 @@ def edit_voluntario(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('SELECT * FROM voluntarios WHERE id = %s', (id,))
     voluntario = cursor.fetchone()
     
@@ -497,7 +497,7 @@ def admin_inativos():
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     
     hoje = datetime.now()
     # Pega aproximadamente os 60 dias passados como limite de tolerância
@@ -527,7 +527,7 @@ def admin_areas():
     if not check_auth(): return redirect(url_for('admin_login'))
     
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     if request.method == 'POST':
         nome = request.form.get('nome')
         max_pessoas = request.form.get('max_pessoas')
@@ -544,7 +544,7 @@ def admin_areas():
 def delete_area(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('DELETE FROM escalas WHERE area_id = %s', (id,))
     cursor.execute('DELETE FROM voluntario_areas WHERE area_id = %s', (id,))
     cursor.execute('DELETE FROM areas WHERE id = %s', (id,))
@@ -557,7 +557,7 @@ def delete_area(id):
 def delete_escala(id):
     if not check_auth(): return redirect(url_for('admin_login'))
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute('DELETE FROM escalas WHERE id = %s', (id,))
     conn.commit()
     conn.close()
