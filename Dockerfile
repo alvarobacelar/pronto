@@ -27,7 +27,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DB_HOST=172.17.0.2 \
     DB_USER=root \
     DB_PASSWORD=password \
-    DB_NAME=escala
+    DB_NAME=escala \
+    BD_DATABASE=escala
 
 # Copia apenas as dependências instaladas do estágio de build
 COPY --from=builder /install /usr/local
