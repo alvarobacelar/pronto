@@ -42,12 +42,17 @@ def check_auth():
 @app.route('/')
 def index():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM areas')
-    areas = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    if conn is None:
+        # Em vez de dar erro 500 de sistema, mostra uma mensagem amigável
+        return "Erro ao conectar ao banco de dados.", 503
     
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM areas')
+        areas = cursor.fetchall()
+    finally:
+        conn.close()
+
     hoje = datetime.now()
     prox_mes = hoje.month + 1 if hoje.month < 12 else 1
     prox_ano = hoje.year if hoje.month < 12 else hoje.year + 1
