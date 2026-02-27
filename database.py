@@ -13,7 +13,7 @@ DB_CONFIG = {
     "database": os.environ.get('DB_NAME', 'escala'),
     "charset": 'utf8mb4',
     "cursorclass": pymysql.cursors.DictCursor,
-    "autocommit": True,
+    "autocommit": False,
     "client_flag": pymysql.constants.CLIENT.PLUGIN_AUTH,
     "ssl_disabled": False,
     "ssl": {'check_hostname': False}
@@ -87,6 +87,7 @@ def init_db():
                 ) ENGINE=InnoDB;
             ''')
 
+        conn.commit()
         logger.info("Estrutura do banco de dados verificada/criada com sucesso.")
     except Exception as err:
         logger.error(f"Erro na criação das tabelas: {err}")

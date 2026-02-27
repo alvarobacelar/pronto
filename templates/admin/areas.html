@@ -36,10 +36,14 @@
                     <td><strong>{{ a.nome }}</strong></td>
                     <td>{{ a.max_pessoas }} pessoas</td>
                     <td>
-                        <form method="POST" action="{{ url_for('delete_area', id=a.id) }}" style="display: inline;"
-                            onsubmit="return confirm('ATENÇÃO: Remover a Área cancelará todos os agendamentos nela. Continuar?');">
-                            <button class="btn btn-danger">Remover</button>
-                        </form>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <a href="{{ url_for('edit_area', id=a.id) }}" class="btn btn-secondary"
+                                style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; text-decoration: none;">Editar</a>
+                            <form method="POST" action="{{ url_for('delete_area', id=a.id) }}" style="display: inline;"
+                                onsubmit="return confirm('ATENÇÃO: Remover a Área cancelará todos os agendamentos nela. Continuar?');">
+                                <button class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Remover</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}

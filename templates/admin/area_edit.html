@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card" style="max-width: 700px; margin: 0 auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2 style="margin: 0;">Editar Área</h2>
+        <a href="{{ url_for('admin_areas') }}" class="btn btn-secondary">Voltar</a>
+    </div>
+
+    <form method="POST" action="{{ url_for('edit_area', id=area.id) }}">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="nome">Nome da Área</label>
+                <input type="text" id="nome" name="nome" value="{{ area.nome }}" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="max_pessoas">Lotação Máx. por Turno</label>
+                <input type="number" id="max_pessoas" name="max_pessoas" min="1" value="{{ area.max_pessoas }}"
+                    required>
+            </div>
+        </div>
+
+        <div
+            style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 2rem;">Salvar Alterações</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
