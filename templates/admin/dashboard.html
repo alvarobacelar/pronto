@@ -8,7 +8,7 @@
 
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
 
-            <form method="GET" action="{{ url_for('admin_dashboard') }}"
+            <form method="GET" action="{{ url_for('admin_dashboard') if is_admin else url_for('escala_publica') }}"
                 style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-left: 0.5rem;">
                 <select name="month_year" onchange="this.form.submit()"
                     style="width: auto; padding: 0.4rem; font-size: 0.9rem;">
@@ -91,11 +91,13 @@
                         {% for resp in turno_manha["responsavel"] %}
                         <div class="cell-content">
                             <span>{{ resp.nome }}</span>
+                            {% if is_admin %}
                             <form method="POST" action="{{ url_for('delete_escala', id=resp.id) }}"
                                 style="display:inline;"
                                 onsubmit="return confirm('Cancelar agendamento de {{ resp.nome }}?');">
                                 <button type="submit" class="btn-remove-micro" title="Remover">×</button>
                             </form>
+                            {% endif %}
                         </div>
                         {% endfor %}
                         {% else %}
@@ -103,11 +105,13 @@
                         {% if idx < turno_manha["equipe"]|length %} {% set eq=turno_manha["equipe"][idx] %} <div
                             class="cell-content">
                             <span>{{ eq.nome }}</span>
+                            {% if is_admin %}
                             <form method="POST" action="{{ url_for('delete_escala', id=eq.id) }}"
                                 style="display:inline;"
                                 onsubmit="return confirm('Cancelar agendamento de {{ eq.nome }}?');">
                                 <button type="submit" class="btn-remove-micro" title="Remover">×</button>
                             </form>
+                            {% endif %}
     </div>
     {% endif %}
     {% endif %}
@@ -120,20 +124,24 @@
         {% for resp in turno_noite["responsavel"] %}
         <div class="cell-content">
             <span>{{ resp.nome }}</span>
+            {% if is_admin %}
             <form method="POST" action="{{ url_for('delete_escala', id=resp.id) }}" style="display:inline;"
                 onsubmit="return confirm('Cancelar agendamento de {{ resp.nome }}?');">
                 <button type="submit" class="btn-remove-micro" title="Remover">×</button>
             </form>
+            {% endif %}
         </div>
         {% endfor %}
         {% else %}
         {% set idx = i - 1 %}
         {% if idx < turno_noite["equipe"]|length %} {% set eq=turno_noite["equipe"][idx] %} <div class="cell-content">
             <span>{{ eq.nome }}</span>
+            {% if is_admin %}
             <form method="POST" action="{{ url_for('delete_escala', id=eq.id) }}" style="display:inline;"
                 onsubmit="return confirm('Cancelar agendamento de {{ eq.nome }}?');">
                 <button type="submit" class="btn-remove-micro" title="Remover">×</button>
             </form>
+            {% endif %}
 </div>
 {% endif %}
 {% endif %}

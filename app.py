@@ -228,11 +228,8 @@ def admin_logout():
     return redirect(url_for("index"))
 
 
-@app.route("/admin")
-def admin_dashboard():
-    if not check_auth():
-        return redirect(url_for("admin_login"))
-
+def _build_dashboard_context(is_admin):
+    """Build the template context for the dashboard / escala page."""
     area_filter = request.args.get("area_id")
     month_year = request.args.get("month_year")
 
@@ -249,7 +246,10 @@ def admin_dashboard():
         areas, escalas = get_dashboard_data(ano, mes, area_filter)
     except RepositoryError:
         flash("Erro ao carregar dashboard.", "danger")
-        return render_template("admin/dashboard.html", areas=[], grids={}, domingos=[], mes_str="", max_rows={}, lista_meses=[], my_sel="", area_sel=None)
+        return render_template(
+            "admin/dashboard.html", areas=[], grids={}, domingos=[], mes_str="",
+            max_rows={}, lista_meses=[], my_sel="", area_sel=None, is_admin=is_admin,
+        )
 
     if not area_filter and areas:
         area_filter = str(areas[0]["id"])
@@ -326,7 +326,21 @@ def admin_dashboard():
         lista_meses=lista_meses,
         my_sel=my_sel,
         area_sel=area_filter,
+        is_admin=is_admin,
     )
+
+
+@app.route("/escala")
+def escala_publica():
+    return _build_dashboard_context(is_admin=False)
+
+
+@app.route("/admin")
+def admin_dashboard():
+    if not check_auth():
+        return redirect(url_for("admin_login"))
+
+    return _build_dashboard_context(is_admin=True)
 
 
 @app.route("/admin/voluntarios", methods=["GET", "POST"])
