@@ -37,7 +37,9 @@
     {% if grids %}
     <div class="table-container">
         <table class="escala-grid">
-            {% for area_nome, dias in grids.items() %}
+            {% for area_nome, dados in grids.items() %}
+            {% set dias = dados["dias"] %}
+            {% set area_id = dados["id"] %}
             <thead>
                 <!-- Linha de Cabeçalho da Área -->
                 <tr class="area-header">
@@ -100,6 +102,13 @@
                             {% endif %}
                         </div>
                         {% endfor %}
+                        {% if is_admin %}
+                        <div class="mt-1">
+                            <button type="button" class="btn-remove-micro" title="Adicionar Responsável"
+                                onclick="openAddModal('{{ area_id }}', '{{ d.iso }}', 'Manhã', 1)"
+                                style="color: var(--primary); font-size: 1rem;">➕</button>
+                        </div>
+                        {% endif %}
                         {% else %}
                         {% set idx = i - 1 %}
                         {% if idx < turno_manha["equipe"]|length %} {% set eq=turno_manha["equipe"][idx] %} <div
@@ -113,6 +122,14 @@
                             </form>
                             {% endif %}
     </div>
+    {% elif idx == turno_manha["equipe"]|length %}
+    {% if is_admin %}
+    <div class="mt-1">
+        <button type="button" class="btn-remove-micro" title="Adicionar Equipe"
+            onclick="openAddModal('{{ area_id }}', '{{ d.iso }}', 'Manhã', 0)"
+            style="color: var(--primary); font-size: 1rem;">➕</button>
+    </div>
+    {% endif %}
     {% endif %}
     {% endif %}
     </td>
@@ -132,6 +149,13 @@
             {% endif %}
         </div>
         {% endfor %}
+        {% if is_admin %}
+        <div class="mt-1">
+            <button type="button" class="btn-remove-micro" title="Adicionar Responsável"
+                onclick="openAddModal('{{ area_id }}', '{{ d.iso }}', 'Noite', 1)"
+                style="color: var(--primary); font-size: 1rem;">➕</button>
+        </div>
+        {% endif %}
         {% else %}
         {% set idx = i - 1 %}
         {% if idx < turno_noite["equipe"]|length %} {% set eq=turno_noite["equipe"][idx] %} <div class="cell-content">
@@ -143,6 +167,14 @@
             </form>
             {% endif %}
 </div>
+{% elif idx == turno_noite["equipe"]|length %}
+{% if is_admin %}
+<div class="mt-1">
+    <button type="button" class="btn-remove-micro" title="Adicionar Equipe"
+        onclick="openAddModal('{{ area_id }}', '{{ d.iso }}', 'Noite', 0)"
+        style="color: var(--primary); font-size: 1rem;">➕</button>
+</div>
+{% endif %}
 {% endif %}
 {% endif %}
 </td>
@@ -158,6 +190,69 @@
 <p class="text-muted">Nenhuma escala encontrada com os filtros atuais.</p>
 {% endif %}
 </div>
+
+<!-- Modal Adicionar Voluntário -->
+{% if is_admin %}
+<div id="addVolunteerModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin: 0;">Adicionar à Escala</h3>
+            <button class="modal-close" onclick="closeAddModal()">&times;</button>
+        </div>
+        <form id="addVolunteerForm" method="POST" action="{{ url_for('admin_escala_add') }}">
+            <input type="hidden" id="voluntario_id" name="voluntario_id" required>
+
+            <div class="input-container">
+                <label for="volunteer_search">Buscar Voluntário (Nome ou Telefone)</label>
+                <input type="text" id="volunteer_search" placeholder="Digite para buscar..." autocomplete="off">
+                <div id="search_results" class="search-results"></div>
+                <div id="selected_volunteer"
+                    style="display: none; margin-top: 0.5rem; color: var(--success); font-weight: 500;">
+                    Selecionado: <span id="selected_name"></span>
+                    <button type="button" onclick="clearSelection()"
+                        style="background: none; border: none; color: var(--danger); cursor: pointer; text-decoration: underline; font-size: 0.8rem;">Alterar</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="modal_area_id">Área</label>
+                <select id="modal_area_id" name="area_id" required>
+                    <option value="">Selecione uma área...</option>
+                    {% for area in areas %}
+                    <option value="{{ area.id }}">{{ area.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label for="modal_data">Data</label>
+                    <select id="modal_data" name="data" required>
+                        <option value="">Selecione...</option>
+                        {% for d in domingos %}
+                        <option value="{{ d.iso }}">{{ d.br }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label for="modal_turno">Turno</label>
+                    <select id="modal_turno" name="turno" required>
+                        <option value="">Selecione...</option>
+                        <option value="Manhã">Manhã</option>
+                        <option value="Noite">Noite</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" style="background-color: #e5e7eb; color: #374151;"
+                    onclick="closeAddModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" id="btn_submit_add" disabled>Confirmar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -223,5 +318,111 @@
         const wb = XLSX.utils.table_to_book(clone, { sheet: "Escala" });
         XLSX.writeFile(wb, `Escala_{{ mes_str|replace('/', '-')|replace(' ', '') }}.xlsx`);
     }
+
+    {% if is_admin %}
+    const searchInput = document.getElementById('volunteer_search');
+    const searchResults = document.getElementById('search_results');
+    const selectedVolunteerDiv = document.getElementById('selected_volunteer');
+    const selectedNameSpan = document.getElementById('selected_name');
+    const voluntarioIdInput = document.getElementById('voluntario_id');
+    const btnSubmitAdd = document.getElementById('btn_submit_add');
+    let searchTimeout;
+    let currentIsResponsavel = null;
+
+    function openAddModal(areaId, dataStr, turno, isResponsavel) {
+        document.getElementById('addVolunteerModal').classList.add('active');
+
+        const areaSelect = document.getElementById('modal_area_id');
+        const dataSelect = document.getElementById('modal_data');
+        const turnoSelect = document.getElementById('modal_turno');
+
+        if (areaId) areaSelect.value = areaId;
+        if (dataStr) dataSelect.value = dataStr;
+        if (turno) turnoSelect.value = turno;
+
+        // Make fields readonly visually and by pointer restriction
+        areaSelect.style.pointerEvents = 'none';
+        dataSelect.style.pointerEvents = 'none';
+        turnoSelect.style.pointerEvents = 'none';
+        areaSelect.style.backgroundColor = '#e5e7eb';
+        dataSelect.style.backgroundColor = '#e5e7eb';
+        turnoSelect.style.backgroundColor = '#e5e7eb';
+
+        currentIsResponsavel = isResponsavel;
+
+        const title = document.querySelector('.modal-header h3');
+        if (title) {
+            title.textContent = isResponsavel === 1 ? "Adicionar Líder" : "Adicionar Equipe";
+        }
+    }
+
+    function closeAddModal() {
+        document.getElementById('addVolunteerModal').classList.remove('active');
+        document.getElementById('addVolunteerForm').reset();
+        clearSelection();
+    }
+
+    function clearSelection() {
+        voluntarioIdInput.value = '';
+        selectedVolunteerDiv.style.display = 'none';
+        searchInput.style.display = 'block';
+        searchInput.value = '';
+        btnSubmitAdd.disabled = true;
+        searchResults.classList.remove('active');
+    }
+
+    function selectVolunteer(id, nome) {
+        voluntarioIdInput.value = id;
+        selectedNameSpan.textContent = nome;
+        selectedVolunteerDiv.style.display = 'block';
+        searchInput.style.display = 'none';
+        searchResults.classList.remove('active');
+        btnSubmitAdd.disabled = false;
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function () {
+            clearTimeout(searchTimeout);
+            const query = this.value.trim();
+
+            if (query.length < 2) {
+                searchResults.classList.remove('active');
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                const areaIdVal = document.getElementById('modal_area_id').value;
+                const respQuery = currentIsResponsavel !== null ? `&is_responsavel=${currentIsResponsavel}` : '';
+                fetch(`/admin/api/voluntarios/search?q=${encodeURIComponent(query)}&area_id=${areaIdVal}${respQuery}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        searchResults.innerHTML = '';
+                        if (data.length === 0) {
+                            searchResults.innerHTML = '<div style="padding: 0.75rem 1rem; color: #6b7280;">Nenhum voluntário encontrado.</div>';
+                        } else {
+                            data.forEach(v => {
+                                const div = document.createElement('div');
+                                div.className = 'search-result-item';
+                                div.innerHTML = `<strong>${v.nome}</strong> <br><small style="color: #6b7280;">${v.telefone}</small>`;
+                                div.onclick = () => selectVolunteer(v.id, v.nome);
+                                searchResults.appendChild(div);
+                            });
+                        }
+                        searchResults.classList.add('active');
+                    })
+                    .catch(err => {
+                        console.error(err);
+                    });
+            }, 300); // 300ms debounce
+        });
+
+        // Hide results when clicking outside
+        document.addEventListener('click', function (e) {
+            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                searchResults.classList.remove('active');
+            }
+        });
+    }
+    {% endif %}
 </script>
 {% endblock %}

@@ -40,13 +40,49 @@
     </form>
 </div>
 
+<div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">
+    <h2>Importar Voluntários (CSV / XLSX)</h2>
+    <p class="text-muted" style="font-size: 0.9rem; margin-bottom: 1rem;">
+        O arquivo deve conter as colunas <strong>Nome</strong> e <strong>Telefone</strong>.
+        Opcionalmente, pode incluir as colunas <strong>Area</strong> (separadas por vírgula) e <strong>Lider</strong>
+        (Sim/Não).
+    </p>
+    <form method="POST" action="{{ url_for('admin_voluntarios_import') }}" enctype="multipart/form-data"
+        style="display: flex; gap: 1rem; align-items: center;">
+        <input type="file" name="file" accept=".csv, .xlsx, .xls" required
+            style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface);">
+        <button type="submit" class="btn btn-secondary">Importar Arquivo</button>
+    </form>
+</div>
+
 <div class="card">
-    <h2>Voluntários Cadastrados ({{ voluntarios|length }})</h2>
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
+        <h2 style="margin: 0;">Voluntários Cadastrados ({{ total_count }})</h2>
+        <form method="GET" action="{{ url_for('admin_voluntarios') }}"
+            style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <input type="text" name="q" placeholder="Buscar por Nome ou Telefone" value="{{ search_query }}"
+                style="padding: 0.4rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--surface);">
+            <label for="area_filter" style="margin: 0; font-size: 0.9rem; font-weight: 500; display:none;">Filtrar por
+                Área:</label>
+            <select name="area_id" id="area_filter" onchange="this.form.submit()"
+                style="padding: 0.4rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--surface);">
+                <option value="">Todas as Áreas</option>
+                {% for a in areas %}
+                <option value="{{ a.id }}" {% if area_filter|string==a.id|string %}selected{% endif %}>{{ a.nome }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem;">Buscar</button>
+        </form>
+    </div>
     {% if voluntarios %}
     <div class="table-container">
         <table>
             <thead>
                 <tr>
+                    <th style="width: 50px;">#</th>
                     <th>Nome</th>
                     <th>Telefone</th>
                     <th>Áreas</th>
@@ -57,6 +93,7 @@
             <tbody>
                 {% for v in voluntarios %}
                 <tr>
+                    <td style="color: #94a3b8; font-size: 0.8rem;">{{ loop.index + (page - 1) * 30 }}</td>
                     <td>{{ v.nome }}</td>
                     <td>{{ v.telefone }}</td>
                     <td><span style="font-size: 0.85rem; color: #475569;">{{ v.areas_nomes or 'Nenhuma' }}</span></td>
@@ -79,8 +116,36 @@
             </tbody>
         </table>
     </div>
+
+    <div
+        style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem;">
+        <span class="text-muted" style="font-size: 0.9rem;">
+            Página {{ page }} de {{ total_pages }}
+        </span>
+        <div style="display: flex; gap: 0.5rem;">
+            {% if page > 1 %}
+            <a href="{{ url_for('admin_voluntarios', area_id=area_filter, q=search_query, page=page-1) }}"
+                class="btn btn-secondary"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem; text-decoration: none;">&laquo; Anterior</a>
+            {% else %}
+            <span class="btn btn-secondary disabled"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem; opacity: 0.5; cursor: not-allowed;">&laquo;
+                Anterior</span>
+            {% endif %}
+
+            {% if page < total_pages %} <a
+                href="{{ url_for('admin_voluntarios', area_id=area_filter, q=search_query, page=page+1) }}"
+                class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; text-decoration: none;">
+                Próximo &raquo;</a>
+                {% else %}
+                <span class="btn btn-secondary disabled"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.9rem; opacity: 0.5; cursor: not-allowed;">Próximo
+                    &raquo;</span>
+                {% endif %}
+        </div>
+    </div>
     {% else %}
-    <p class="text-muted">Nenhum voluntário cadastrado.</p>
+    <p class="text-muted">Nenhum voluntário encontrado com os filtros atuais.</p>
     {% endif %}
 </div>
 {% endblock %}

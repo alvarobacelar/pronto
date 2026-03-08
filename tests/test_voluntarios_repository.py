@@ -61,7 +61,8 @@ def test_voluntario_has_area(mock_db_conn):
 def test_list_voluntarios_with_areas(mock_db_conn):
     mock_cursor = mock_db_conn.cursor.return_value.__enter__.return_value
     mock_cursor.fetchall.side_effect = [[{"id": 1, "nome": "João"}], [{"id": 1, "nome": "Som"}]]
-    voluntarios, areas = list_voluntarios_with_areas()
+    mock_cursor.fetchone.return_value = {"total": 1}
+    voluntarios, areas, total_count = list_voluntarios_with_areas()
     assert len(voluntarios) == 1
     assert len(areas) == 1
 

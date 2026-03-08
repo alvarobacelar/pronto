@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 import calendar
 import os
+import re
+
+import pandas as pd
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, session, url_for
 
@@ -32,6 +35,7 @@ from repositories.voluntarios_repository import (
     list_voluntarios_with_areas,
     update_voluntario,
     voluntario_has_area,
+    search_voluntarios,
 )
 
 app = Flask(__name__)
@@ -261,8 +265,11 @@ def _build_dashboard_context(is_admin):
         if area_filter and str(area["id"]) != str(area_filter):
             continue
         grids[area["nome"]] = {
-            dia["iso"]: {"Manhã": {"responsavel": [], "equipe": []}, "Noite": {"responsavel": [], "equipe": []}}
-            for dia in domingos
+            "id": area["id"],
+            "dias": {
+                dia["iso"]: {"Manhã": {"responsavel": [], "equipe": []}, "Noite": {"responsavel": [], "equipe": []}}
+                for dia in domingos
+            }
         }
 
     for escala in escalas:
@@ -270,16 +277,16 @@ def _build_dashboard_context(is_admin):
         data_escala = escala["data"]
         data_iso = data_escala.strftime("%Y-%m-%d") if hasattr(data_escala, "strftime") else data_escala
         turno = escala["turno"]
-        if area_nome in grids and data_iso in grids[area_nome]:
+        if area_nome in grids and data_iso in grids[area_nome]["dias"]:
             grupo = "responsavel" if escala["responsavel"] else "equipe"
-            grids[area_nome][data_iso][turno][grupo].append({"id": escala["id"], "nome": escala["voluntario_nome"]})
+            grids[area_nome]["dias"][data_iso][turno][grupo].append({"id": escala["id"], "nome": escala["voluntario_nome"]})
 
     max_rows = {}
-    for area_nome, dias in grids.items():
+    for area_nome, dados in grids.items():
         maior = 0
-        for turnos in dias.values():
+        for turnos in dados["dias"].values():
             maior = max(maior, len(turnos["Manhã"]["equipe"]), len(turnos["Noite"]["equipe"]))
-        max_rows[area_nome] = max(maior + 1, 2)
+        max_rows[area_nome] = max(maior + 2, 2)
 
     meses_nomes = [
         "",
@@ -363,12 +370,150 @@ def admin_voluntarios():
             flash("Erro ao cadastrar voluntário.", "danger")
 
     try:
-        voluntarios, areas = list_voluntarios_with_areas()
+        area_filter = request.args.get("area_id")
+        search_query = request.args.get("q", "").strip()
+        try:
+            page = int(request.args.get("page", 1))
+            if page < 1:
+                page = 1
+        except ValueError:
+            page = 1
+            
+        limit = 30
+        offset = (page - 1) * limit
+        
+        voluntarios, areas, total_count = list_voluntarios_with_areas(area_filter, search_query, limit, offset)
+        
+        import math
+        total_pages = math.ceil(total_count / limit) if total_count > 0 else 1
+        
     except RepositoryError:
         flash("Erro ao carregar voluntários.", "danger")
-        voluntarios, areas = [], []
+        voluntarios, areas, total_count = [], [], 0
+        search_query = ""
+        page = 1
+        total_pages = 1
 
-    return render_template("admin/voluntarios.html", voluntarios=voluntarios, areas=areas)
+    return render_template(
+        "admin/voluntarios.html", 
+        voluntarios=voluntarios, 
+        areas=areas, 
+        area_filter=area_filter,
+        search_query=search_query,
+        page=page,
+        total_pages=total_pages,
+        total_count=total_count
+    )
+
+
+@app.route("/admin/voluntarios/import", methods=["POST"])
+def admin_voluntarios_import():
+    if not check_auth():
+        return redirect(url_for("admin_login"))
+
+    file = request.files.get("file")
+    if not file or file.filename == "":
+        flash("Nenhum arquivo selecionado.", "danger")
+        return redirect(url_for("admin_voluntarios"))
+
+    try:
+        if file.filename.endswith(".csv"):
+            df = pd.read_csv(file)
+            # Support for Brazilian Excel CSVs separated by ';'
+            if len(df.columns) == 1 and ';' in str(df.columns[0]):
+                file.seek(0)
+                df = pd.read_csv(file, sep=';')
+        elif file.filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file)
+        else:
+            flash("Formato de arquivo não suportado. Use CSV ou Excel.", "danger")
+            return redirect(url_for("admin_voluntarios"))
+
+        # Normalize column names to lowercase and strip whitespaces
+        df.columns = df.columns.astype(str).str.strip().str.lower()
+
+        # Check required columns
+        app.logger.info(df.columns)
+        if "nome" not in df.columns or "telefone" not in df.columns:
+            flash("O arquivo deve conter pelo menos as colunas 'Nome' e 'Telefone'.", "danger")
+            return redirect(url_for("admin_voluntarios"))
+
+        # Fetch areas map
+        try:
+            areas_db = list_areas()
+            # Map lowercase area name to area id
+            areas_map = {str(a["nome"]).lower().strip(): a["id"] for a in areas_db}
+        except RepositoryError:
+            areas_map = {}
+
+        importados = 0
+        existentes = 0
+        erros = 0
+
+        for index, row in df.iterrows():
+            nome_val = row.get("nome")
+            # Skip if nome is NaN
+            if pd.isna(nome_val):
+                continue
+                
+            nome = str(nome_val).strip()
+            telefone_bruto = str(row.get("telefone", ""))
+            
+            # Avoid nan string if imported empty cells
+            if telefone_bruto.lower() == 'nan':
+                telefone_bruto = ""
+                
+            telefone = re.sub(r'\D', '', telefone_bruto)
+
+            if not nome or not telefone:
+                erros += 1
+                continue
+
+            # Check if phone exists
+            try:
+                existente = get_voluntario_by_phone(telefone)
+                if existente:
+                    existentes += 1
+                    continue
+            except RepositoryError:
+                erros += 1
+                continue
+
+            # Parse 'responsavel' / 'lider'
+            responsavel = 0
+            for col in ["lider", "líder", "responsável", "responsavel"]:
+                if col in df.columns:
+                    val = str(row.get(col, "")).strip().lower()
+                    if val in ["sim", "s", "true", "1"]:
+                        responsavel = 1
+                    break
+
+            # Parse 'areas'
+            areas_selecionadas = []
+            for col in ["area", "área", "areas", "áreas"]:
+                if col in df.columns:
+                    area_val = str(row.get(col, ""))
+                    if area_val and area_val.lower() != 'nan':
+                        # Split by comma or semicolon
+                        nomes_areas = [a.strip().lower() for a in re.split(r'[,;]', area_val) if a.strip()]
+                        for nome_area in nomes_areas:
+                            if nome_area in areas_map:
+                                areas_selecionadas.append(str(areas_map[nome_area]))
+                    break
+
+            try:
+                create_voluntario(nome, telefone, responsavel, areas_selecionadas)
+                importados += 1
+            except (DuplicatePhoneError, RepositoryError):
+                erros += 1
+
+        flash(f"Importação concluída: {importados} importados, {existentes} já existiam, {erros} com erro.", "success")
+
+    except Exception as e:
+        app.logger.exception("Erro na importação: %s", e)
+        flash(f"Erro ao processar o arquivo: {str(e)}", "danger")
+
+    return redirect(url_for("admin_voluntarios"))
 
 
 @app.route("/admin/voluntarios/<int:id>/delete", methods=["POST"])
@@ -523,7 +668,64 @@ def delete_escala(id):
     return redirect(request.referrer or url_for("admin_dashboard"))
 
 
+@app.route("/admin/api/voluntarios/search", methods=["GET"])
+def api_admin_voluntarios_search():
+    if not check_auth():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    query = request.args.get("q", "").strip()
+    area_id = request.args.get("area_id")
+    is_responsavel = request.args.get("is_responsavel")
+    
+    if is_responsavel is not None and is_responsavel != "":
+        is_responsavel = int(is_responsavel)
+    else:
+        is_responsavel = None
+
+    if not query or len(query) < 2:
+        return jsonify([])
+
+    try:
+        resultados = search_voluntarios(query, area_id, is_responsavel)
+        return jsonify(resultados)
+    except RepositoryError:
+        return jsonify({"error": "Erro ao buscar voluntários"}), 500
+
+
+@app.route("/admin/escala/add", methods=["POST"])
+def admin_escala_add():
+    if not check_auth():
+        return redirect(url_for("admin_login"))
+
+    voluntario_id = request.form.get("voluntario_id")
+    area_id = request.form.get("area_id")
+    data = request.form.get("data")
+    turno = request.form.get("turno")
+
+    if not all([voluntario_id, area_id, data, turno]):
+        flash("Todos os campos do modal (voluntário, área, data, turno) são obrigatórios.", "danger")
+        return redirect(url_for("admin_dashboard"))
+
+    try:
+        # Admin bypasses some validations, but we shouldn't allow duplicates on the same day/shift
+        if escala_exists(voluntario_id, data, turno):
+            flash("O voluntário selecionado já está escalado neste dia e turno.", "warning")
+        else:
+            create_escala(voluntario_id, area_id, data, turno)
+            flash("Voluntário adicionado à escala.", "success")
+            
+            # Helper to redirect to the updated view
+            if data and len(data) >= 7:
+                month_year = data[:7]  # YYYY-MM
+                return redirect(url_for("admin_dashboard", month_year=month_year, area_id=area_id))
+
+    except RepositoryError:
+        flash("Erro ao salvar agendamento no banco de dados.", "danger")
+
+    return redirect(url_for("admin_dashboard"))
+
+
 if __name__ == "__main__":
     host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5001))
-    app.run(host=host, port=port)
+    app.run(host=host, port=port, debug=True)

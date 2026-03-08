@@ -73,25 +73,54 @@ def get_voluntario_with_areas_by_phone(telefone):
         conn.close()
 
 
-def list_voluntarios_with_areas():
+def list_voluntarios_with_areas(area_id=None, search_query=None, limit=30, offset=0):
     conn = connect()
     try:
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
+            # 1. Base conditions
+            where_clauses = []
+            params = []
+            
+            if area_id:
+                where_clauses.append("v.id IN (SELECT voluntario_id FROM voluntario_areas WHERE area_id = %s)")
+                params.append(area_id)
+                
+            if search_query:
+                where_clauses.append("(v.nome LIKE %s OR v.telefone LIKE %s)")
+                param_query = f"%{search_query}%"
+                params.extend([param_query, param_query])
+                
+            where_sql = ""
+            if where_clauses:
+                where_sql = " WHERE " + " AND ".join(where_clauses)
+                
+            # 2. Count total records
+            count_query = f"SELECT COUNT(*) as total FROM voluntarios v {where_sql}"
+            cursor.execute(count_query, tuple(params))
+            total_count = cursor.fetchone()["total"]
+
+            # 3. Main Query
+            limit_val = int(limit)
+            offset_val = int(offset)
+            
+            query = f"""
                 SELECT v.*, GROUP_CONCAT(a.nome SEPARATOR ', ') as areas_nomes
                 FROM voluntarios v
                 LEFT JOIN voluntario_areas va ON v.id = va.voluntario_id
                 LEFT JOIN areas a ON va.area_id = a.id
+                {where_sql}
                 GROUP BY v.id
                 ORDER BY v.responsavel DESC, v.nome ASC
-                """
-            )
+                LIMIT {limit_val} OFFSET {offset_val}
+            """
+            logger.info(query)
+            cursor.execute(query, tuple(params))
             voluntarios = cursor.fetchall()
 
             cursor.execute("SELECT * FROM areas ORDER BY nome ASC")
             areas = cursor.fetchall()
-            return voluntarios, areas
+            
+            return voluntarios, areas, total_count
     except Exception as err:
         logger.exception("Erro ao listar voluntários: %s", err)
         raise RepositoryError("Erro ao listar voluntários.") from err
@@ -207,5 +236,45 @@ def list_inativos(data_limite_iso):
     except Exception as err:
         logger.exception("Erro ao listar inativos: %s", err)
         raise RepositoryError("Erro ao listar inativos.") from err
+    finally:
+        conn.close()
+
+
+def search_voluntarios(query, area_id=None, is_responsavel=None):
+    conn = connect()
+    try:
+        with conn.cursor() as cursor:
+            search_pattern = f"%{query}%"
+            
+            base_query = """
+                SELECT v.id, v.nome, v.telefone, v.responsavel 
+                FROM voluntarios v
+            """
+            
+            params = []
+            
+            # If area is provided, join with voluntario_areas
+            if area_id:
+                base_query += " JOIN voluntario_areas va ON v.id = va.voluntario_id"
+            
+            base_query += " WHERE (v.nome LIKE %s OR v.telefone LIKE %s)"
+            params.extend([search_pattern, search_pattern])
+            
+            if area_id:
+                base_query += " AND va.area_id = %s"
+                params.append(area_id)
+                
+            if is_responsavel is not None:
+                # responsavel can be 0 or 1 in DB
+                base_query += " AND v.responsavel = %s"
+                params.append(is_responsavel)
+                
+            base_query += " ORDER BY v.nome ASC LIMIT 50"
+            
+            cursor.execute(base_query, tuple(params))
+            return cursor.fetchall()
+    except Exception as err:
+        logger.exception("Erro ao pesquisar voluntários: %s", err)
+        raise RepositoryError("Erro ao pesquisar voluntários.") from err
     finally:
         conn.close()

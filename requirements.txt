@@ -4,3 +4,5 @@ mysql-connector-python
 PyMySQL
 python-dotenv
 cryptography
+pandas
+openpyxl

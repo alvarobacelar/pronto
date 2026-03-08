@@ -1,3 +1,4 @@
+import io
 import pytest
 from unittest.mock import patch, MagicMock
 from flask import session
@@ -163,19 +164,19 @@ def test_admin_voluntarios_list(client):
     with client.session_transaction() as sess:
         sess["admin_logged_in"] = True
     with patch("app.list_voluntarios_with_areas") as mock_list:
-        mock_list.return_value = ([], [])
+        mock_list.return_value = ([{"id": 1, "nome": "Vol 1"}], [{"id": 1, "nome": "Area 1"}], 1)
         response = client.get("/admin/voluntarios")
         assert response.status_code == 200
-        assert "Voluntários".encode("utf-8") in response.data
+        assert b"Vol 1" in response.data
 
 def test_admin_voluntarios_create(client):
     with client.session_transaction() as sess:
         sess["admin_logged_in"] = True
     with patch("app.create_voluntario") as mock_create, \
          patch("app.list_voluntarios_with_areas") as mock_list:
-        mock_list.return_value = ([], [])
+        mock_list.return_value = ([], [], 0)
         response = client.post("/admin/voluntarios", data={
-            "nome": "Novo", "telefone": "123", "areas": ["1"]
+            "nome": "Novo Vol", "telefone": "123", "areas": ["1", "2"]
         }, follow_redirects=True)
         assert "Voluntário cadastrado".encode("utf-8") in response.data
         mock_create.assert_called_once()
@@ -206,9 +207,11 @@ def test_admin_voluntarios_edit_post(client):
         sess["admin_logged_in"] = True
     with patch("app.get_voluntario_by_id", return_value={"id": 1, "nome": "João"}), \
          patch("app.update_voluntario") as mock_update, \
-         patch("app.list_voluntarios_with_areas", return_value=([], [])):
+         patch("app.get_voluntario_area_ids", return_value=["1"]), \
+         patch("app.list_areas", return_value=[{"id": 1, "nome": "A1"}]), \
+         patch("app.list_voluntarios_with_areas", return_value=([], [], 0)):
         response = client.post("/admin/voluntarios/1/edit", data={
-            "nome": "João Mod", "telefone": "321", "areas": ["1"]
+            "nome": "Editado", "telefone": "999", "responsavel": "on", "areas": ["1"]
         }, follow_redirects=True)
         assert b"atualizado" in response.data.lower()
         mock_update.assert_called_once()
@@ -298,7 +301,7 @@ def test_admin_voluntarios_duplicate_phone(client):
         sess["admin_logged_in"] = True
     from repositories.errors import DuplicatePhoneError
     with patch("app.create_voluntario", side_effect=DuplicatePhoneError()), \
-         patch("app.list_voluntarios_with_areas", return_value=([], [])):
+         patch("app.list_voluntarios_with_areas", return_value=([], [], 0)):
         response = client.post("/admin/voluntarios", data={
             "nome": "Novo", "telefone": "123", "areas": ["1"]
         }, follow_redirects=True)
@@ -340,3 +343,70 @@ def test_agendar_already_scheduled(client):
         assert response.status_code == 400
         data = response.get_json()
         assert "já está escalado" in data["message"]
+
+def test_admin_voluntarios_import_csv(client):
+    with client.session_transaction() as sess:
+        sess["admin_logged_in"] = True
+    
+    csv_content = "Nome,Telefone,Area,Lider\nJoão,11999999999,Som,Sim\nMaria,11888888888,,Não\n"
+    data = {
+        'file': (io.BytesIO(csv_content.encode('utf-8')), 'test.csv')
+    }
+    
+    with patch("app.list_areas", return_value=[{"id": 1, "nome": "Som"}]), \
+         patch("app.get_voluntario_by_phone", side_effect=[None, None]), \
+         patch("app.create_voluntario") as mock_create:
+        
+        response = client.post("/admin/voluntarios/import", data=data, content_type='multipart/form-data', follow_redirects=True)
+        
+        assert response.status_code == 200
+        assert "2 importados".encode("utf-8") in response.data
+        assert mock_create.call_count == 2
+        # João
+        mock_create.assert_any_call("João", "11999999999", 1, ["1"])
+        # Maria
+        mock_create.assert_any_call("Maria", "11888888888", 0, [])
+
+def test_admin_voluntarios_import_duplicate(client):
+    with client.session_transaction() as sess:
+        sess["admin_logged_in"] = True
+    
+    csv_content = "Nome,Telefone\nPedro,11777777777\n"
+    data = {
+        'file': (io.BytesIO(csv_content.encode('utf-8')), 'test.csv')
+    }
+    
+    with patch("app.list_areas", return_value=[]), \
+         patch("app.get_voluntario_by_phone", return_value={"id": 1, "nome": "Pedro"}), \
+         patch("app.create_voluntario") as mock_create:
+        
+        response = client.post("/admin/voluntarios/import", data=data, content_type='multipart/form-data', follow_redirects=True)
+        
+        assert response.status_code == 200
+        assert "1 já existiam".encode("utf-8") in response.data
+        assert mock_create.call_count == 0
+
+def test_admin_voluntarios_import_invalid_file(client):
+    with client.session_transaction() as sess:
+        sess["admin_logged_in"] = True
+    
+    data = {
+        'file': (io.BytesIO(b"test"), 'test.txt')
+    }
+    
+    response = client.post("/admin/voluntarios/import", data=data, content_type='multipart/form-data', follow_redirects=True)
+    assert response.status_code == 200
+    assert "Formato de arquivo não suportado".encode("utf-8") in response.data
+
+def test_admin_voluntarios_import_missing_columns(client):
+    with client.session_transaction() as sess:
+        sess["admin_logged_in"] = True
+    
+    csv_content = "Idade,Cidade\n20,SP\n"
+    data = {
+        'file': (io.BytesIO(csv_content.encode('utf-8')), 'test.csv')
+    }
+    
+    response = client.post("/admin/voluntarios/import", data=data, content_type='multipart/form-data', follow_redirects=True)
+    assert response.status_code == 200
+    assert "O arquivo deve conter".encode("utf-8") in response.data
