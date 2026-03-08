@@ -113,7 +113,7 @@ def list_voluntarios_with_areas(area_id=None, search_query=None, limit=30, offse
                 ORDER BY v.responsavel DESC, v.nome ASC
                 LIMIT {limit_val} OFFSET {offset_val}
             """
-            logger.info(query)
+            
             cursor.execute(query, tuple(params))
             voluntarios = cursor.fetchall()
 
