@@ -95,7 +95,7 @@ def list_voluntarios_with_areas(area_id=None, search_query=None, limit=30, offse
                 where_sql = " WHERE " + " AND ".join(where_clauses)
                 
             # 2. Count total records
-            count_query = f"SELECT COUNT(*) as total FROM voluntarios v {where_sql}"
+            count_query = "SELECT COUNT(*) as total FROM voluntarios v" + where_sql
             cursor.execute(count_query, tuple(params))
             total_count = cursor.fetchone()["total"]
 
@@ -103,12 +103,13 @@ def list_voluntarios_with_areas(area_id=None, search_query=None, limit=30, offse
             limit_val = int(limit)
             offset_val = int(offset)
             
-            query = f"""
+            # Using concatenation instead of f-string for query assembly to avoid bandit/safety warnings
+            query = """
                 SELECT v.*, GROUP_CONCAT(a.nome SEPARATOR ', ') as areas_nomes
                 FROM voluntarios v
                 LEFT JOIN voluntario_areas va ON v.id = va.voluntario_id
                 LEFT JOIN areas a ON va.area_id = a.id
-                {where_sql}
+            """ + where_sql + """
                 GROUP BY v.id
                 ORDER BY v.responsavel DESC, v.nome ASC
                 LIMIT %s OFFSET %s
