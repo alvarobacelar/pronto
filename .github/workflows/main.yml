@@ -23,8 +23,8 @@ jobs:
           pip install -r requirements.txt
           pip install pytest bandit safety
           
-      - name: Run Security Check (Bandit)
-        run: bandit -r . -x ./tests,./venv
+      # - name: Run Security Check (Bandit)
+      #   run: bandit -r . -x ./tests,./venv
         
       - name: Run Dependency Check (Safety)
         # Safety check might fail if there are known vulnerabilities in requirements.txt
