@@ -272,9 +272,17 @@ def resumo_vagas():
         d_br = item["br"][:5]
         turnos_permitidos = item["turnos"]
 
+        dias = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo']
+
+        # --- Lógica para o dia da semana ---
+        data_obj = datetime.strptime(d_iso, "%Y-%m-%d")
+        dia_semana = dias[data_obj.weekday()] # Pega "Segunda" de "Segunda-feira"
+        # -----------------------------------
+
         res_item = {
             "iso": d_iso,
             "br": d_br,
+            "dia_semana": dia_semana,
             "turnos": []
         }
 
@@ -833,6 +841,6 @@ def admin_escala_add():
 
 
 if __name__ == "__main__":
-    host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
+    host = os.environ.get("FLASK_RUN_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", 5001))
     app.run(host=host, port=port, debug=True)

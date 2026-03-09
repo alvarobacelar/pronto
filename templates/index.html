@@ -150,21 +150,23 @@
                 let turnosHtml = '';
                 item.turnos.forEach(t => {
                     const isLotado = t.vagas_livres <= 0;
-                    const statusClass = isLotado ? 'color:var(--danger)' : 'color:var(--primary)';
-                    const statusText = isLotado ? `LOTADO (${t.escalados})` : `${t.vagas_livres} vagas`;
+                    const statusClass = isLotado ? 'color:var(--danger)' : 'color:var(--success)';
+                    const statusText = isLotado ? 'LOTADO' : 'DISPONÍVEL';
+                    const composicaoText = `Responsáveis: ${t.responsavel} <br> Equipe: ${t.escalados}`;
                     const slotValue = `${item.iso}|${t.nome}`;
 
                     turnosHtml += `
                     <label class="slot-card-mini" style="display: block; cursor: ${isLotado ? 'not-allowed' : 'pointer'}; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 6px; border-radius: 4px; transition: all 0.2s; opacity: ${isLotado ? '0.6' : '1'};">
                         <input type="checkbox" name="slots" value="${slotValue}" ${isLotado ? 'disabled' : ''} style="display: none;" onchange="updateSlotStyle(this)">
                         <div style="font-weight: 600; font-size: 0.8rem;">${t.nome}</div>
+                        <div style="color:#64748b; font-size: 0.7rem;">${composicaoText}</div>
                         <div style="${statusClass}; font-size: 0.7rem; font-weight: bold;">${statusText}</div>
                     </label>`;
                 });
 
                 html += `
                 <div class="day-card" style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; text-align: center; transition: all 0.2s;">
-                    <div style="font-weight: 700; font-size: 0.9rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px; color: #334155;">${item.br}</div>
+                    <div style="font-weight: 700; font-size: 0.9rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px; color: #334155;">${item.br} (${item.dia_semana})</div>
                     ${turnosHtml}
                 </div>`;
             });
