@@ -35,29 +35,14 @@
 
             <div id="resumo-panel" class="resumo-panel" style="display: none; margin-bottom: 1.5rem;">
                 <p style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; text-transform: uppercase;">
-                    Pessoas Escaladas na Área</p>
+                    Selecione os dias e turnos que deseja servir:</p>
                 <div id="resumo-content"></div>
+                <div id="selecao-info"
+                    style="margin-top: 1rem; font-size: 0.9rem; font-weight: 600; color: var(--primary);"></div>
             </div>
 
-            <div class="form-group">
-                <label for="data">Data Disponível</label>
-                <select id="data" name="data" required disabled>
-                    <option value="" disabled selected>Escolha a área primeiro...</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label for="turno">Turno</label>
-                <select id="turno" name="turno" required disabled>
-                    <option value="" disabled selected>Escolha a área primeiro...</option>
-                    <option value="Manhã">Manhã</option>
-                    <option value="Noite">Noite</option>
-                </select>
-                <div id="status-vagas"></div>
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="submit-btn" style="width: 100%;" disabled>Confirmar
-                Escala</button>
+            <button type="submit" class="btn btn-primary" id="submit-btn"
+                style="width: 100%; border-radius: 8px; padding: 1rem;" disabled>Confirmar Escala</button>
         </div>
     </form>
 </div>
@@ -73,10 +58,7 @@
 
     const step2 = document.getElementById('step-2');
     const areaSelect = document.getElementById('area_id');
-    const dataSelect = document.getElementById('data');
-    const turnoSelect = document.getElementById('turno');
     const submitBtn = document.getElementById('submit-btn');
-    const statusVagas = document.getElementById('status-vagas');
     const messageContainer = document.getElementById('message-container');
     const resumoPanel = document.getElementById('resumo-panel');
     const resumoContent = document.getElementById('resumo-content');
@@ -135,22 +117,15 @@
         }
     });
 
-    // 2. Controlar fluxo das Selects dependentes
+    // 2. Controlar fluxo de seleção
     function checkCompleteness() {
-        if (areaSelect.value !== '') {
-            dataSelect.disabled = false;
-            turnoSelect.disabled = false;
-        } else {
-            dataSelect.disabled = true;
-            turnoSelect.disabled = true;
-            submitBtn.disabled = true;
-        }
-
-        if (areaSelect.value !== '' && dataSelect.value !== '' && turnoSelect.value !== '') {
-            fetchVagas();
+        const selectedSlots = document.querySelectorAll('input[name="slots"]:checked');
+        if (selectedSlots.length > 0) {
+            submitBtn.disabled = false;
+            document.getElementById('selecao-info').textContent = `${selectedSlots.length} horário(s) selecionado(s)`;
         } else {
             submitBtn.disabled = true;
-            statusVagas.innerHTML = '';
+            document.getElementById('selecao-info').textContent = '';
         }
     }
 
@@ -169,39 +144,27 @@
 
             if (data.error) throw new Error(data.error);
 
-            // Populate Data Select
-            dataSelect.innerHTML = '<option value="" disabled selected>Selecione o dia...</option>';
-            data.datas.forEach(d => {
-                dataSelect.innerHTML += `<option value="${d.iso}">${d.br}</option>`;
-            });
-            dataSelect.disabled = false;
-
-            // Clear and disable shift first
-            turnoSelect.innerHTML = '<option value="" disabled selected>Selecione o dia primeiro...</option>';
-            turnoSelect.disabled = true;
-
-            // Store availability for turno selection
-            window.areaAvailability = data.datas;
-
-            let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem;">`;
+            let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.8rem;">`;
 
             data.datas.forEach(item => {
                 let turnosHtml = '';
                 item.turnos.forEach(t => {
-                    const statusClass = t.vagas_livres <= 0 ? 'color:var(--danger)' : 'color:var(--primary)';
-                    const statusText = t.vagas_livres <= 0 ? `LOTADO (${t.escalados})` : `${t.escalados} equipe`;
+                    const isLotado = t.vagas_livres <= 0;
+                    const statusClass = isLotado ? 'color:var(--danger)' : 'color:var(--primary)';
+                    const statusText = isLotado ? `LOTADO (${t.escalados})` : `${t.vagas_livres} vagas`;
+                    const slotValue = `${item.iso}|${t.nome}`;
 
                     turnosHtml += `
-                    <div style="font-size: 0.75rem; margin-top: 4px; border-top: 1px solid #f1f5f9; padding-top: 2px;">
-                        <strong>${t.nome}</strong><br/>
-                        <span style="font-size: 0.7rem; color: #64748b;">${t.responsavel} responsável</span><br/>
-                        <span style="${statusClass}; font-size: 0.75rem; font-weight:bold;">${statusText}</span>
-                    </div>`;
+                    <label class="slot-card-mini" style="display: block; cursor: ${isLotado ? 'not-allowed' : 'pointer'}; margin-top: 8px; border-top: 1px solid #f1f5f9; padding-top: 6px; border-radius: 4px; transition: all 0.2s; opacity: ${isLotado ? '0.6' : '1'};">
+                        <input type="checkbox" name="slots" value="${slotValue}" ${isLotado ? 'disabled' : ''} style="display: none;" onchange="updateSlotStyle(this)">
+                        <div style="font-weight: 600; font-size: 0.8rem;">${t.nome}</div>
+                        <div style="${statusClass}; font-size: 0.7rem; font-weight: bold;">${statusText}</div>
+                    </label>`;
                 });
 
                 html += `
-                <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; text-align: center;">
-                    <div style="font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">${item.br}</div>
+                <div class="day-card" style="background: #ffffff; border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; text-align: center; transition: all 0.2s;">
+                    <div style="font-weight: 700; font-size: 0.9rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 6px; color: #334155;">${item.br}</div>
                     ${turnosHtml}
                 </div>`;
             });
@@ -213,58 +176,24 @@
         }
     }
 
-    // Handle Data change to populate Shifts
-    dataSelect.addEventListener('change', () => {
-        const selectedIso = dataSelect.value;
-        const dayData = window.areaAvailability.find(d => d.iso === selectedIso);
-
-        turnoSelect.innerHTML = '<option value="" disabled selected>Selecione o turno...</option>';
-        if (dayData) {
-            dayData.turnos.forEach(t => {
-                turnoSelect.innerHTML += `<option value="${t.nome}">${t.nome}</option>`;
-            });
-            turnoSelect.disabled = false;
+    window.updateSlotStyle = function (checkbox) {
+        const label = checkbox.parentElement;
+        if (checkbox.checked) {
+            label.style.backgroundColor = '#ecfdf5';
+            label.style.border = '1px solid #10b981';
+            label.querySelector('div').style.color = '#059669';
         } else {
-            turnoSelect.disabled = true;
+            label.style.backgroundColor = 'transparent';
+            label.style.border = '1px solid transparent';
+            label.querySelector('div').style.color = 'inherit';
         }
-        statusVagas.innerHTML = '';
-        submitBtn.disabled = true;
-    });
-
-    async function fetchVagas() {
-        if (areaSelect.value === '' || dataSelect.value === '' || turnoSelect.value === '') return;
-
-        statusVagas.innerHTML = '<span class="text-muted">Verificando vagas...</span>';
-        submitBtn.disabled = true;
-
-        try {
-            const params = new URLSearchParams({
-                area_id: areaSelect.value,
-                data: dataSelect.value,
-                turno: turnoSelect.value
-            });
-            const response = await fetch(`/api/vagas?${params}`);
-            const data = await response.json();
-
-            if (data.lotado) {
-                statusVagas.innerHTML = '<span class="text-danger">Lotado (Vagas esgotadas)</span>';
-                submitBtn.disabled = true;
-            } else {
-                statusVagas.innerHTML = `<span class="text-success">${data.vagas_disponiveis} vaga(s) disponível(is)</span>`;
-                submitBtn.disabled = false;
-            }
-        } catch (err) {
-            console.error(err);
-            statusVagas.innerHTML = '<span class="text-danger">Erro ao verificar vagas.</span>';
-        }
-    }
+        checkCompleteness();
+    };
 
     areaSelect.addEventListener('change', () => {
         checkCompleteness();
         fetchResumo();
     });
-    dataSelect.addEventListener('change', checkCompleteness);
-    turnoSelect.addEventListener('change', checkCompleteness);
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -293,7 +222,7 @@
                 telefoneInput.readOnly = false;
                 authMessage.innerHTML = '';
                 resumoPanel.style.display = 'none';
-                statusVagas.innerHTML = '';
+                document.getElementById('selecao-info').textContent = '';
             } else {
                 messageContainer.innerHTML = `<div class="alert alert-danger">${result.message}</div>`;
             }

@@ -359,6 +359,43 @@ def test_agendar_already_scheduled(client):
         data = response.get_json()
         assert "já está escalado" in data["message"]
 
+def test_agendar_multiple_slots_success(client):
+    with patch("app.get_voluntario_by_phone", return_value={"id": 1}), \
+         patch("app.voluntario_has_area", return_value=True), \
+         patch("app.get_area_by_id", return_value={"max_pessoas": 5}), \
+         patch("app.count_agendados_non_responsavel", return_value=0), \
+         patch("app.escala_exists", return_value=False), \
+         patch("app.create_escala") as mock_create:
+        
+        response = client.post("/agendar", data={
+            "telefone": "123", 
+            "area_id": "1", 
+            "slots": ["2024-05-19|Manhã", "2024-05-26|Noite"]
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "2 agendamento(s) realizado(s)" in data["message"]
+        assert mock_create.call_count == 2
+
+def test_agendar_multiple_slots_partial_success(client):
+    with patch("app.get_voluntario_by_phone", return_value={"id": 1}), \
+         patch("app.voluntario_has_area", return_value=True), \
+         patch("app.get_area_by_id", return_value={"max_pessoas": 5}), \
+         patch("app.count_agendados_non_responsavel", return_value=0), \
+         patch("app.escala_exists", side_effect=[False, True]), \
+         patch("app.create_escala") as mock_create:
+        
+        response = client.post("/agendar", data={
+            "telefone": "123", 
+            "area_id": "1", 
+            "slots": ["2024-05-19|Manhã", "2024-05-26|Noite"]
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "1 agendamento(s) realizado(s)" in data["message"]
+        assert "já está escalado" in data["message"]
+        assert mock_create.call_count == 1
+
 def test_admin_voluntarios_import_csv(client):
     with client.session_transaction() as sess:
         sess["admin_logged_in"] = True

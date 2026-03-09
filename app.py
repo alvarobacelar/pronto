@@ -133,8 +133,17 @@ def index():
 def agendar():
     telefone = request.form.get("telefone")
     area_id = request.form.get("area_id")
-    data = request.form.get("data")
-    turno = request.form.get("turno")
+    slots = request.form.getlist("slots")  # format: "YYYY-MM-DD|Turno"
+
+    if not slots:
+        # Fallback for old single selection if still sent
+        data = request.form.get("data")
+        turno = request.form.get("turno")
+        if data and turno:
+            slots = [f"{data}|{turno}"]
+
+    if not slots:
+        return jsonify({"status": "error", "message": "Nenhum horário selecionado."}), 400
 
     try:
         voluntario = get_voluntario_by_phone(telefone)
@@ -148,15 +157,36 @@ def agendar():
         if not area:
             return jsonify({"status": "error", "message": "Área inválida."}), 400
 
-        agendados = count_agendados_non_responsavel(area_id, data, turno)
-        if agendados >= area["max_pessoas"]:
-            return jsonify({"status": "error", "message": "Vagas esgotadas para esta área/turno."}), 400
+        sucessos = 0
+        erros = []
 
-        if escala_exists(voluntario["id"], data, turno):
-            return jsonify({"status": "error", "message": "Você já está escalado(a) neste dia e turno."}), 400
+        for slot in slots:
+            try:
+                data_val, turno_val = slot.split("|")
+            except ValueError:
+                erros.append(f"Formato de horário inválido: {slot}")
+                continue
 
-        create_escala(voluntario["id"], area_id, data, turno)
-        return jsonify({"status": "success", "message": "Escala confirmada com sucesso!"})
+            agendados = count_agendados_non_responsavel(area_id, data_val, turno_val)
+            if agendados >= area["max_pessoas"]:
+                erros.append(f"Vagas esgotadas para {data_val} ({turno_val}).")
+                continue
+
+            if escala_exists(voluntario["id"], data_val, turno_val):
+                erros.append(f"Você já está escalado(a) em {data_val} ({turno_val}).")
+                continue
+
+            create_escala(voluntario["id"], area_id, data_val, turno_val)
+            sucessos += 1
+
+        if sucessos > 0:
+            msg = f"{sucessos} agendamento(s) realizado(s) com sucesso!"
+            if erros:
+                msg += " Alguns horários não puderam ser marcados: " + "; ".join(erros)
+            return jsonify({"status": "success", "message": msg})
+        else:
+            return jsonify({"status": "error", "message": "Não foi possível realizar nenhum agendamento: " + "; ".join(erros)}), 400
+
     except RepositoryError:
         return jsonify({"status": "error", "message": "Erro interno ao processar agendamento."}), 500
 
@@ -805,4 +835,4 @@ def admin_escala_add():
 if __name__ == "__main__":
     host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5001))
-    app.run(host=host, port=port)
+    app.run(host=host, port=port, debug=True)
