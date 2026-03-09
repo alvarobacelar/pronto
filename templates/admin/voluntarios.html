@@ -4,14 +4,16 @@
 <div class="card">
     <h2>Cadastrar Voluntário</h2>
     <form method="POST" action="{{ url_for('admin_voluntarios') }}">
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; align-items: end;">
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; align-items: end;">
             <div class="form-group" style="margin-bottom: 0;">
-                <label for="nome">Nome Completo</label>
-                <input type="text" id="nome" name="nome" required>
+                <label for="nome">Nome Sobrenome</label>
+                <input type="text" id="nome" name="nome" required style="width: 100%; box-sizing: border-box;">
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="telefone">Telefone (Somente Números)</label>
-                <input type="tel" id="telefone" name="telefone" placeholder="Ex: 11999999999" required>
+                <input type="tel" id="telefone" name="telefone" placeholder="Ex: 11999999999" required
+                    style="width: 100%; box-sizing: border-box;">
             </div>
             <div class="form-group" style="margin-bottom: 0; padding-bottom: 0.75rem;">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
@@ -31,6 +33,8 @@
                     area.nome }}
                 </label>
                 {% endfor %}
+                <span class="text-muted" style="font-size: 0.85rem;">Clique <a
+                        href="{{ url_for('admin_areas') }}">aqui</a> para cadastrar nova área</span>
                 {% else %}
                 <span class="text-muted" style="font-size: 0.85rem;">Cadastre áreas primeiro.</span>
                 {% endif %}

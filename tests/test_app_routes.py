@@ -281,11 +281,22 @@ def test_admin_areas_delete(client):
 def test_admin_inativos(client):
     with client.session_transaction() as sess:
         sess["admin_logged_in"] = True
-    with patch("app.list_inativos") as mock_list:
+    with patch("app.count_inativos") as mock_count, \
+         patch("app.list_inativos") as mock_list, \
+         patch("app.list_areas", return_value=[]):
+        mock_count.return_value = 51
         mock_list.return_value = []
-        response = client.get("/admin/inativos")
+        response = client.get("/admin/inativos?nome=Joao&area_id=2&page=2")
         assert response.status_code == 200
         assert "Inativos".encode("utf-8") in response.data
+        _, count_kwargs = mock_count.call_args
+        assert count_kwargs["nome_filter"] == "Joao"
+        assert count_kwargs["area_id"] == 2
+        _, kwargs = mock_list.call_args
+        assert kwargs["nome_filter"] == "Joao"
+        assert kwargs["area_id"] == 2
+        assert kwargs["limit"] == 30
+        assert kwargs["offset"] == 30
 
 def test_delete_escala(client):
     with client.session_transaction() as sess:

@@ -25,6 +25,7 @@ from repositories.escalas_repository import (
     get_resumo_vagas,
 )
 from repositories.voluntarios_repository import (
+    count_inativos,
     create_voluntario,
     delete_voluntario as repo_delete_voluntario,
     get_voluntario_area_ids,
@@ -694,14 +695,50 @@ def admin_inativos():
 
     limite = datetime.now() - timedelta(days=60)
     data_limite_iso = limite.strftime("%Y-%m-%d")
+    nome_filter = request.args.get("nome", "").strip()
+    area_filter_raw = request.args.get("area_id", "").strip()
+    area_filter = int(area_filter_raw) if area_filter_raw.isdigit() else None
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = 30
+    offset = (page - 1) * per_page
 
     try:
-        inativos = list_inativos(data_limite_iso)
+        total_count = count_inativos(data_limite_iso, nome_filter=nome_filter, area_id=area_filter)
+        total_pages = max(1, (total_count + per_page - 1) // per_page)
+        if page > total_pages:
+            page = total_pages
+            offset = (page - 1) * per_page
+
+        inativos = list_inativos(
+            data_limite_iso,
+            nome_filter=nome_filter,
+            area_id=area_filter,
+            limit=per_page,
+            offset=offset,
+        )
     except RepositoryError:
         flash("Erro ao carregar inativos.", "danger")
         inativos = []
+        total_count = 0
+        total_pages = 1
 
-    return render_template("admin/inativos.html", inativos=inativos, data_limite=limite)
+    try:
+        areas = list_areas()
+    except RepositoryError:
+        flash("Erro ao carregar áreas.", "danger")
+        areas = []
+
+    return render_template(
+        "admin/inativos.html",
+        inativos=inativos,
+        data_limite=limite,
+        areas=areas,
+        nome_filter=nome_filter,
+        area_filter=area_filter,
+        page=page,
+        total_pages=total_pages,
+        total_count=total_count,
+    )
 
 
 @app.route("/admin/areas", methods=["GET", "POST"])

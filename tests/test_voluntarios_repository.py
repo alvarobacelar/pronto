@@ -9,6 +9,7 @@ from repositories.voluntarios_repository import (
     update_voluntario,
     voluntario_has_area,
     list_inativos,
+    count_inativos,
     get_voluntario_with_areas_by_phone,
     get_voluntario_area_ids
 )
@@ -84,6 +85,27 @@ def test_list_inativos(mock_db_conn):
     inativos = list_inativos("2024-05-19")
     assert len(inativos) == 1
 
+def test_list_inativos_with_filters(mock_db_conn):
+    mock_cursor = mock_db_conn.cursor.return_value.__enter__.return_value
+    mock_cursor.fetchall.return_value = []
+    list_inativos("2024-05-19", nome_filter="Jo", area_id=2, limit=30, offset=60)
+    query, params = mock_cursor.execute.call_args[0]
+    assert "v.nome LIKE %s" in query
+    assert "EXISTS" in query
+    assert "LIMIT %s OFFSET %s" in query
+    assert params == ("2024-05-19", "%Jo%", 2, 30, 60)
+
+def test_count_inativos_with_filters(mock_db_conn):
+    mock_cursor = mock_db_conn.cursor.return_value.__enter__.return_value
+    mock_cursor.fetchone.return_value = {"total": 42}
+    total = count_inativos("2024-05-19", nome_filter="Jo", area_id=2)
+    query, params = mock_cursor.execute.call_args[0]
+    assert "COUNT(*) as total" in query
+    assert "v.nome LIKE %s" in query
+    assert "EXISTS" in query
+    assert params == ("2024-05-19", "%Jo%", 2)
+    assert total == 42
+
 def test_voluntarios_repository_errors(mock_db_conn):
     mock_cursor = mock_db_conn.cursor.return_value.__enter__.return_value
     mock_cursor.execute.side_effect = Exception("Error")
@@ -138,6 +160,8 @@ def test_voluntarios_repository_errors_extended(mock_db_conn):
         update_voluntario(1, "N", "T", 0, [])
     with pytest.raises(RepositoryError):
         list_inativos("2024-01-01")
+    with pytest.raises(RepositoryError):
+        count_inativos("2024-01-01")
     with pytest.raises(RepositoryError):
         create_voluntario("N", "T", 0, [])
 

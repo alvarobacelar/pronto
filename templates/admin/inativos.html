@@ -12,9 +12,29 @@
         </div>
         <div
             style="background-color: var(--danger); color: white; padding: 0.5rem 1rem; border-radius: 6px; font-weight: bold;">
-            {{ inativos|length }} Inativos
+            {{ total_count }} Inativos
         </div>
     </div>
+
+    <form method="GET" action="{{ url_for('admin_inativos') }}"
+        style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+        <input type="text" name="nome" placeholder="Filtrar por nome" value="{{ nome_filter }}"
+            style="padding: 0.4rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--surface); min-width: 240px;">
+        <select name="area_id"
+            style="padding: 0.4rem; border-radius: 6px; border: 1px solid var(--border); background-color: var(--surface);">
+            <option value="">Todas as Áreas</option>
+            {% for area in areas %}
+            <option value="{{ area.id }}" {% if area_filter|string==area.id|string %}selected{% endif %}>{{ area.nome
+                }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary"
+            style="padding: 0.4rem 0.8rem; font-size: 0.9rem;">Filtrar</button>
+        {% if nome_filter or area_filter %}
+        <a href="{{ url_for('admin_inativos') }}" class="btn btn-secondary"
+            style="padding: 0.4rem 0.8rem; font-size: 0.9rem; text-decoration: none;">Limpar</a>
+        {% endif %}
+    </form>
 
     {% if inativos %}
     <div class="table-container">
@@ -23,6 +43,7 @@
                 <tr>
                     <th>Nome</th>
                     <th>Telefone</th>
+                    <th>Área(s)</th>
                     <th>Líder/Responsável</th>
                     <th>Última Participação</th>
                     <th>Ações</th>
@@ -34,6 +55,7 @@
                     <td>{{ v.nome }}</td>
                     <td><a href="https://wa.me/55{{ v.telefone }}" target="_blank"
                             style="color: var(--primary); text-decoration: none;">{{ v.telefone }}</a></td>
+                    <td><span style="font-size: 0.85rem; color: #475569;">{{ v.areas_nomes or 'Sem área' }}</span></td>
                     <td>{% if v.responsavel %}<span class="badge"
                             style="background-color: #d1fae5; color: #065f46;">Sim</span>{% else %}Não{% endif %}</td>
                     <td>
@@ -56,6 +78,32 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+    <div
+        style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding-top: 1rem;">
+        <span class="text-muted" style="font-size: 0.9rem;">
+            Página {{ page }} de {{ total_pages }}
+        </span>
+        <div style="display: flex; gap: 0.5rem;">
+            {% if page > 1 %}
+            <a href="{{ url_for('admin_inativos', nome=nome_filter, area_id=area_filter, page=page-1) }}"
+                class="btn btn-secondary"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem; text-decoration: none;">&laquo; Anterior</a>
+            {% else %}
+            <span class="btn btn-secondary disabled"
+                style="padding: 0.4rem 0.8rem; font-size: 0.9rem; opacity: 0.5; cursor: not-allowed;">&laquo;
+                Anterior</span>
+            {% endif %}
+            {% if page < total_pages %} <a
+                href="{{ url_for('admin_inativos', nome=nome_filter, area_id=area_filter, page=page+1) }}"
+                class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.9rem; text-decoration: none;">
+                Próximo &raquo;</a>
+                {% else %}
+                <span class="btn btn-secondary disabled"
+                    style="padding: 0.4rem 0.8rem; font-size: 0.9rem; opacity: 0.5; cursor: not-allowed;">Próximo
+                    &raquo;</span>
+                {% endif %}
+        </div>
     </div>
     {% else %}
     <div

@@ -219,24 +219,87 @@ def update_voluntario(voluntario_id, nome, telefone, responsavel, areas_selecion
         conn.close()
 
 
-def list_inativos(data_limite_iso):
+def count_inativos(data_limite_iso, nome_filter=None, area_id=None):
     conn = connect()
     try:
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT v.id, v.nome, v.telefone, v.responsavel,
-                       (SELECT MAX(e.data) FROM escalas e WHERE e.voluntario_id = v.id) as ultima_escala
+            query = """
+                SELECT COUNT(*) as total
                 FROM voluntarios v
                 WHERE v.id NOT IN (
                     SELECT DISTINCT voluntario_id
                     FROM escalas
                     WHERE data >= %s
                 )
+            """
+            params = [data_limite_iso]
+
+            if nome_filter:
+                query += " AND v.nome LIKE %s"
+                params.append(f"%{nome_filter}%")
+
+            if area_id:
+                query += """
+                    AND EXISTS (
+                        SELECT 1
+                        FROM voluntario_areas va2
+                        WHERE va2.voluntario_id = v.id AND va2.area_id = %s
+                    )
+                """
+                params.append(area_id)
+
+            cursor.execute(query, tuple(params))
+            result = cursor.fetchone()
+            return result["total"] if result else 0
+    except Exception as err:
+        logger.exception("Erro ao contar inativos: %s", err)
+        raise RepositoryError("Erro ao contar inativos.") from err
+    finally:
+        conn.close()
+
+
+def list_inativos(data_limite_iso, nome_filter=None, area_id=None, limit=None, offset=0):
+    conn = connect()
+    try:
+        with conn.cursor() as cursor:
+            query = """
+                SELECT v.id, v.nome, v.telefone, v.responsavel,
+                       GROUP_CONCAT(DISTINCT a.nome ORDER BY a.nome SEPARATOR ', ') as areas_nomes,
+                       (SELECT MAX(e.data) FROM escalas e WHERE e.voluntario_id = v.id) as ultima_escala
+                FROM voluntarios v
+                LEFT JOIN voluntario_areas va ON va.voluntario_id = v.id
+                LEFT JOIN areas a ON a.id = va.area_id
+                WHERE v.id NOT IN (
+                    SELECT DISTINCT voluntario_id
+                    FROM escalas
+                    WHERE data >= %s
+                )
+            """
+            params = [data_limite_iso]
+
+            if nome_filter:
+                query += " AND v.nome LIKE %s"
+                params.append(f"%{nome_filter}%")
+
+            if area_id:
+                query += """
+                    AND EXISTS (
+                        SELECT 1
+                        FROM voluntario_areas va2
+                        WHERE va2.voluntario_id = v.id AND va2.area_id = %s
+                    )
+                """
+                params.append(area_id)
+
+            query += """
+                GROUP BY v.id, v.nome, v.telefone, v.responsavel
                 ORDER BY ultima_escala DESC, v.nome ASC
-                """,
-                (data_limite_iso,),
-            )
+            """
+            if limit is not None:
+                query += " LIMIT %s OFFSET %s"
+                params.extend([int(limit), int(offset)])
+
+            cursor.execute(query, tuple(params))
             return cursor.fetchall()
     except Exception as err:
         logger.exception("Erro ao listar inativos: %s", err)

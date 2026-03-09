@@ -18,8 +18,14 @@
     {% if session.get('admin_logged_in') %}
     <nav>
         <div class="nav-container">
-            <h2 style="margin-bottom: 0; font-size: 1.25rem;">Pronto - Admin</h2>
-            <div class="nav-links">
+            <div class="nav-header">
+                <h2 style="margin-bottom: 0; font-size: 1.25rem;">Pronto - Admin</h2>
+                <button type="button" class="nav-toggle" id="admin-nav-toggle" aria-expanded="false"
+                    aria-controls="admin-nav-links">
+                    Menu
+                </button>
+            </div>
+            <div class="nav-links" id="admin-nav-links">
                 <a href="{{ url_for('admin_dashboard') }}">Escalas</a>
                 <a href="{{ url_for('admin_voluntarios') }}">Voluntários</a>
                 <a href="{{ url_for('admin_areas') }}">Áreas</a>
@@ -43,6 +49,20 @@
     </div>
 
     {% block scripts %}{% endblock %}
+    {% if session.get('admin_logged_in') %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggleBtn = document.getElementById('admin-nav-toggle');
+            const navLinks = document.getElementById('admin-nav-links');
+            if (!toggleBtn || !navLinks) return;
+
+            toggleBtn.addEventListener('click', function () {
+                const isOpen = navLinks.classList.toggle('is-open');
+                toggleBtn.setAttribute('aria-expanded', String(isOpen));
+            });
+        });
+    </script>
+    {% endif %}
 </body>
 
 <footer
