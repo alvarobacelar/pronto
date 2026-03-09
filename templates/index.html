@@ -40,12 +40,9 @@
             </div>
 
             <div class="form-group">
-                <label for="data">Domingo</label>
+                <label for="data">Data Disponível</label>
                 <select id="data" name="data" required disabled>
                     <option value="" disabled selected>Escolha a área primeiro...</option>
-                    {% for d in domingos %}
-                    <option value="{{ d.iso }}">{{ d.br }}</option>
-                    {% endfor %}
                 </select>
             </div>
 
@@ -172,35 +169,67 @@
 
             if (data.error) throw new Error(data.error);
 
-            let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 0.5rem;">`;
+            // Populate Data Select
+            dataSelect.innerHTML = '<option value="" disabled selected>Selecione o dia...</option>';
+            data.datas.forEach(d => {
+                dataSelect.innerHTML += `<option value="${d.iso}">${d.br}</option>`;
+            });
+            dataSelect.disabled = false;
 
-            data.domingos.forEach(domin => {
-                const getStatus = (escalados, maximo) => {
-                    if (escalados >= maximo) return `<span style="color:var(--danger); font-size: 0.75rem; font-weight:bold;">LOTADO (${escalados})</span>`;
-                    return `<span style="color:var(--primary); font-size: 0.75rem; font-weight:bold;">${escalados} equipe</span>`;
-                }
-                const getStatusResponsavel = (escalados, maximo) => {
-                    if (escalados >= maximo) return `<span style="color:var(--danger); font-size: 0.75rem; font-weight:bold;">LOTADO (${escalados})</span>`;
-                    return `<span style="color:var(--primary); font-size: 0.75rem; font-weight:bold;">${escalados} responsável</span>`;
-                }
+            // Clear and disable shift first
+            turnoSelect.innerHTML = '<option value="" disabled selected>Selecione o dia primeiro...</option>';
+            turnoSelect.disabled = true;
+
+            // Store availability for turno selection
+            window.areaAvailability = data.datas;
+
+            let html = `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem;">`;
+
+            data.datas.forEach(item => {
+                let turnosHtml = '';
+                item.turnos.forEach(t => {
+                    const statusClass = t.vagas_livres <= 0 ? 'color:var(--danger)' : 'color:var(--primary)';
+                    const statusText = t.vagas_livres <= 0 ? `LOTADO (${t.escalados})` : `${t.escalados} equipe`;
+
+                    turnosHtml += `
+                    <div style="font-size: 0.75rem; margin-top: 4px; border-top: 1px solid #f1f5f9; padding-top: 2px;">
+                        <strong>${t.nome}</strong><br/>
+                        <span style="font-size: 0.7rem; color: #64748b;">${t.responsavel} responsável</span><br/>
+                        <span style="${statusClass}; font-size: 0.75rem; font-weight:bold;">${statusText}</span>
+                    </div>`;
+                });
 
                 html += `
                 <div style="background: #ffffff; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem; text-align: center;">
-                    <div style="font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">${domin.br}</div>
-                    <div style="font-size: 0.75rem; margin-bottom: 2px;">Manhã</div>
-                    ${getStatusResponsavel(domin.manha_responsavel, data.max_pessoas)}<br/>
-                    ${getStatus(domin.manha_escalados, data.max_pessoas)}    
-                    <div style="font-size: 0.75rem; margin-top: 4px; margin-bottom: 2px;">Noite</div>
-                    ${getStatusResponsavel(domin.noite_responsavel, data.max_pessoas)}<br/>
-                    ${getStatus(domin.noite_escalados, data.max_pessoas)}
+                    <div style="font-weight: 700; font-size: 0.85rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 4px;">${item.br}</div>
+                    ${turnosHtml}
                 </div>`;
             });
             html += `</div>`;
             resumoContent.innerHTML = html;
         } catch (e) {
+            console.error(e);
             resumoContent.innerHTML = '<span class="text-danger">Não foi possível carregar a previsão.</span>';
         }
     }
+
+    // Handle Data change to populate Shifts
+    dataSelect.addEventListener('change', () => {
+        const selectedIso = dataSelect.value;
+        const dayData = window.areaAvailability.find(d => d.iso === selectedIso);
+
+        turnoSelect.innerHTML = '<option value="" disabled selected>Selecione o turno...</option>';
+        if (dayData) {
+            dayData.turnos.forEach(t => {
+                turnoSelect.innerHTML += `<option value="${t.nome}">${t.nome}</option>`;
+            });
+            turnoSelect.disabled = false;
+        } else {
+            turnoSelect.disabled = true;
+        }
+        statusVagas.innerHTML = '';
+        submitBtn.disabled = true;
+    });
 
     async function fetchVagas() {
         if (areaSelect.value === '' || dataSelect.value === '' || turnoSelect.value === '') return;

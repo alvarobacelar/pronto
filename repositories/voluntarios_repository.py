@@ -111,10 +111,14 @@ def list_voluntarios_with_areas(area_id=None, search_query=None, limit=30, offse
                 {where_sql}
                 GROUP BY v.id
                 ORDER BY v.responsavel DESC, v.nome ASC
-                LIMIT {limit_val} OFFSET {offset_val}
+                LIMIT %s OFFSET %s
             """
             
-            cursor.execute(query, tuple(params))
+            # Combine where params with limit/offset params
+            query_params = list(params)
+            query_params.extend([limit_val, offset_val])
+            
+            cursor.execute(query, tuple(query_params))
             voluntarios = cursor.fetchall()
 
             cursor.execute("SELECT * FROM areas ORDER BY nome ASC")

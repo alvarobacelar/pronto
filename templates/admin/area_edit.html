@@ -8,7 +8,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('edit_area', id=area.id) }}">
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
             <div class="form-group" style="margin-bottom: 0;">
                 <label for="nome">Nome da Área</label>
                 <input type="text" id="nome" name="nome" value="{{ area.nome }}" required>
@@ -17,6 +17,31 @@
                 <label for="max_pessoas">Lotação Máx. por Turno</label>
                 <input type="number" id="max_pessoas" name="max_pessoas" min="1" value="{{ area.max_pessoas }}"
                     required>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Dias e Turnos Disponíveis</label>
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; background: #f8fafc; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                {% set disp = area.dias_disponiveis or '' %}
+                {% for dia_idx, dia_nome in [(0, 'Domingo'), (1, 'Segunda'), (2, 'Terça'), (3, 'Quarta'), (4, 'Quinta'),
+                (5, 'Sexta'), (6, 'Sábado')] %}
+                <div style="border: 1px solid #cbd5e1; padding: 0.5rem; border-radius: 6px; background: white;">
+                    <div
+                        style="font-weight: bold; font-size: 0.85rem; margin-bottom: 0.4rem; border-bottom: 1px solid #f1f5f9;">
+                        {{ dia_nome }}</div>
+                    <label
+                        style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer; margin-bottom: 0.2rem;">
+                        <input type="checkbox" name="disponibilidade" value="{{ dia_idx }}_Manhã" {% if (dia_idx|string
+                            + '_Manhã' ) in disp %}checked{% endif %}> Manhã
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; cursor: pointer;">
+                        <input type="checkbox" name="disponibilidade" value="{{ dia_idx }}_Noite" {% if (dia_idx|string
+                            + '_Noite' ) in disp %}checked{% endif %}> Noite
+                    </label>
+                </div>
+                {% endfor %}
             </div>
         </div>
 

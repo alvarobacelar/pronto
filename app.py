@@ -58,6 +58,48 @@ def get_domingos_mes(ano, mes):
     return domingos
 
 
+def get_dates_for_area(area_config, ano, mes):
+    """
+    Returns a list of dates and shifts available for a given area config.
+    area_config is a string like "0_Manhã,0_Noite,3_Noite"
+    """
+    if not area_config:
+        return []
+
+    config_parts = area_config.split(",")
+    # map day_idx -> list of shifts
+    allowed = {}
+    for part in config_parts:
+        if "_" in part:
+            d_idx, shift = part.split("_")
+            allowed.setdefault(int(d_idx), []).append(shift)
+
+    cal = calendar.monthcalendar(ano, mes)
+    dates = []
+    
+    # calendar.monthcalendar: 0 is Monday, 6 is Sunday
+    # Our UI: 0 is Sunday, 1 is Monday ... 6 is Saturday
+    # Python's weekday(): 0 is Monday, 6 is Sunday
+    
+    for week in cal:
+        for day_idx_in_week, day in enumerate(week):
+            if day == 0:
+                continue
+            
+            # Convert day_idx_in_week (0=Mon, 6=Sun) to our UI idx (0=Sun, 1=Mon, ..., 6=Sat)
+            ui_idx = (day_idx_in_week + 1) % 7
+            
+            if ui_idx in allowed:
+                data_iso = f"{ano}-{mes:02d}-{day:02d}"
+                data_br = f"{day:02d}/{mes:02d}/{ano}"
+                dates.append({
+                    "iso": data_iso, 
+                    "br": data_br, 
+                    "turnos": allowed[ui_idx]
+                })
+    return sorted(dates, key=lambda x: x["iso"])
+
+
 @app.template_filter("data_br")
 def format_data_br(data_iso):
     if not data_iso or len(data_iso) != 10:
@@ -186,32 +228,40 @@ def resumo_vagas():
         t = r["turno"]
         resultado_responsavel.setdefault(d, {})[t] = r["total"]
 
-    domingos = get_domingos_mes(prox_ano, prox_mes)
+    area = get_area_by_id(area_id)
+    if not area:
+        return jsonify({"error": "Area not found"}), 404
+
+    availability = area.get("dias_disponiveis", "0_Manhã,0_Noite") # Default to Sundays if empty
+    dates_config = get_dates_for_area(availability, prox_ano, prox_mes)
+    
     resumo_final = []
 
-    for dom in domingos:
-        d_iso = dom["iso"]
-        d_br = dom["br"][:5]
+    for item in dates_config:
+        d_iso = item["iso"]
+        d_br = item["br"][:5]
+        turnos_permitidos = item["turnos"]
 
-        manha_esc = resultado.get(d_iso, {}).get("Manhã", 0)
-        noite_esc = resultado.get(d_iso, {}).get("Noite", 0)
-        manha_esc_resp = resultado_responsavel.get(d_iso, {}).get("Manhã", 0)
-        noite_esc_resp = resultado_responsavel.get(d_iso, {}).get("Noite", 0)
+        res_item = {
+            "iso": d_iso,
+            "br": d_br,
+            "turnos": []
+        }
 
-        resumo_final.append(
-            {
-                "iso": d_iso,
-                "br": d_br,
-                "manha_escalados": manha_esc,
-                "manha_responsavel": manha_esc_resp,
-                "noite_escalados": noite_esc,
-                "noite_responsavel": noite_esc_resp,
-                "manha_livres": max(0, max_p - manha_esc),
-                "noite_livres": max(0, max_p - noite_esc),
-            }
-        )
+        for t in ["Manhã", "Noite"]:
+            if t in turnos_permitidos:
+                esc = resultado.get(d_iso, {}).get(t, 0)
+                resp = resultado_responsavel.get(d_iso, {}).get(t, 0)
+                res_item["turnos"].append({
+                    "nome": t,
+                    "escalados": esc,
+                    "responsavel": resp,
+                    "vagas_livres": max(0, max_p - esc)
+                })
+        
+        resumo_final.append(res_item)
 
-    return jsonify({"max_pessoas": max_p, "domingos": resumo_final})
+    return jsonify({"max_pessoas": max_p, "datas": resumo_final})
 
 
 @app.route("/admin/login", methods=["GET", "POST"])
@@ -258,7 +308,32 @@ def _build_dashboard_context(is_admin):
     if not area_filter and areas:
         area_filter = str(areas[0]["id"])
 
-    domingos = get_domingos_mes(ano, mes)
+    # Get unique dates for the grid based on the area's availability
+    area_objs = {str(a["id"]): a for a in areas}
+    
+    # If a filter is selected, we only show that area's dates. 
+    # If no filter (showing all), we might still want to show all days that have assignments or Sundays as default.
+    grid_dates = []
+    if area_filter and area_filter in area_objs:
+        target_area = area_objs[area_filter]
+        availability = target_area.get("dias_disponiveis", "0_Manhã,0_Noite")
+        grid_dates = get_dates_for_area(availability, ano, mes)
+    else:
+        # Default fallback to Sundays if no area filter or multi-area view
+        grid_dates = get_domingos_mes(ano, mes)
+
+    # Ensure dates from existing escalas are also included if they fall outside standard config (safety)
+    existing_iso_dates = set(d["iso"] for d in grid_dates)
+    for escala in escalas:
+        d_escala = escala["data"]
+        d_iso = d_escala.strftime("%Y-%m-%d") if hasattr(d_escala, "strftime") else str(d_escala)
+        if d_iso not in existing_iso_dates:
+            # We don't have the BR format easily here without a helper, but let's try to keeping it consistent
+            d_dt = datetime.strptime(d_iso, "%Y-%m-%d")
+            existing_iso_dates.add(d_iso)
+            grid_dates.append({"iso": d_iso, "br": d_dt.strftime("%d/%m/%Y")})
+    
+    grid_dates = sorted(grid_dates, key=lambda x: x["iso"])
 
     grids = {}
     for area in areas:
@@ -268,7 +343,7 @@ def _build_dashboard_context(is_admin):
             "id": area["id"],
             "dias": {
                 dia["iso"]: {"Manhã": {"responsavel": [], "equipe": []}, "Noite": {"responsavel": [], "equipe": []}}
-                for dia in domingos
+                for dia in grid_dates
             }
         }
 
@@ -327,7 +402,7 @@ def _build_dashboard_context(is_admin):
         "admin/dashboard.html",
         areas=areas,
         grids=grids,
-        domingos=domingos,
+        domingos=grid_dates, # renamed to match template expectation but contains flex dates
         mes_str=mes_str,
         max_rows=max_rows,
         lista_meses=lista_meses,
@@ -599,8 +674,9 @@ def admin_areas():
     if request.method == "POST":
         nome = request.form.get("nome")
         max_pessoas = request.form.get("max_pessoas")
+        disponibilidade = ",".join(request.form.getlist("disponibilidade"))
         try:
-            create_area(nome, max_pessoas)
+            create_area(nome, max_pessoas, disponibilidade)
             flash("Área cadastrada.", "success")
         except RepositoryError:
             flash("Erro ao cadastrar área.", "danger")
@@ -645,8 +721,9 @@ def edit_area(id):
     if request.method == "POST":
         nome = request.form.get("nome")
         max_pessoas = request.form.get("max_pessoas")
+        disponibilidade = ",".join(request.form.getlist("disponibilidade"))
         try:
-            update_area(id, nome, max_pessoas)
+            update_area(id, nome, max_pessoas, disponibilidade)
             flash("Área atualizada.", "success")
             return redirect(url_for("admin_areas"))
         except RepositoryError:
@@ -728,4 +805,4 @@ def admin_escala_add():
 if __name__ == "__main__":
     host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 5001))
-    app.run(host=host, port=port)
+    app.run(host=host, port=port, debug=True)

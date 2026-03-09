@@ -28,13 +28,13 @@ def get_area_by_id(area_id):
         conn.close()
 
 
-def create_area(nome, max_pessoas):
+def create_area(nome, max_pessoas, dias_disponiveis):
     conn = connect()
     try:
         with conn.cursor() as cursor:
             cursor.execute(
-                "INSERT INTO areas (nome, max_pessoas) VALUES (%s, %s)",
-                (nome, int(max_pessoas)),
+                "INSERT INTO areas (nome, max_pessoas, dias_disponiveis) VALUES (%s, %s, %s)",
+                (nome, int(max_pessoas), dias_disponiveis),
             )
         conn.commit()
     except Exception as err:
@@ -45,13 +45,13 @@ def create_area(nome, max_pessoas):
         conn.close()
 
 
-def update_area(area_id, nome, max_pessoas):
+def update_area(area_id, nome, max_pessoas, dias_disponiveis):
     conn = connect()
     try:
         with conn.cursor() as cursor:
             cursor.execute(
-                "UPDATE areas SET nome = %s, max_pessoas = %s WHERE id = %s",
-                (nome, int(max_pessoas), area_id),
+                "UPDATE areas SET nome = %s, max_pessoas = %s, dias_disponiveis = %s WHERE id = %s",
+                (nome, int(max_pessoas), dias_disponiveis, area_id),
             )
         conn.commit()
     except Exception as err:

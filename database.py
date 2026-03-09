@@ -49,7 +49,8 @@ def init_db():
                 CREATE TABLE IF NOT EXISTS areas (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     nome VARCHAR(100) NOT NULL,
-                    max_pessoas INT DEFAULT 2
+                    max_pessoas INT DEFAULT 2,
+                    dias_disponiveis TEXT
                 ) ENGINE=InnoDB;
             ''')
 
