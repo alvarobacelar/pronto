@@ -88,18 +88,25 @@ def test_get_voluntario_areas_missing_phone(client):
 
 def test_resumo_vagas_success(client):
     with patch("app.get_resumo_vagas") as mock_resumo, \
-         patch("app.get_domingos_mes") as mock_domingos:
+         patch("app.get_area_by_id") as mock_area:
         
         mock_resumo.return_value = (10, [{"data": "2024-06-02", "turno": "Manhã", "total": 2}], [])
-        mock_domingos.return_value = [{"iso": "2024-06-02", "br": "02/06/2024"}]
+        mock_area.return_value = {"id": 1, "nome": "Som", "max_pessoas": 10, "dias_disponiveis": "0_Manhã,0_Noite"}
         
-        response = client.get("/api/resumo_vagas?area_id=1")
-        assert response.status_code == 200
-        data = response.get_json()
-        assert data["max_pessoas"] == 10
-        assert len(data["domingos"]) == 1
-        assert data["domingos"][0]["manha_escalados"] == 2
-        assert data["domingos"][0]["manha_livres"] == 8
+        # Override today to ensure we know what the next month is
+        from datetime import datetime
+        with patch("app.datetime") as mock_date:
+            mock_date.now.return_value = datetime(2024, 5, 1)
+            
+            response = client.get("/api/resumo_vagas?area_id=1")
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["max_pessoas"] == 10
+            assert "datas" in data
+            # 2024-06-02 is a Sunday (0)
+            assert data["datas"][0]["iso"] == "2024-06-02"
+            assert data["datas"][0]["turnos"][0]["nome"] == "Manhã"
+            assert data["datas"][0]["turnos"][0]["vagas_livres"] == 8
 
 def test_resumo_vagas_missing_area_id(client):
     response = client.get("/api/resumo_vagas")
@@ -231,9 +238,13 @@ def test_admin_areas_create(client):
     with patch("app.create_area") as mock_create, \
          patch("app.list_areas") as mock_list:
         mock_list.return_value = []
-        response = client.post("/admin/areas", data={"nome": "Nova Area", "max_pessoas": 5}, follow_redirects=True)
+        response = client.post("/admin/areas", data={
+            "nome": "Area 51", 
+            "max_pessoas": 5,
+            "disponibilidade": ["0_Manhã", "3_Noite"]
+        }, follow_redirects=True)
         assert "Área cadastrada".encode("utf-8") in response.data
-        mock_create.assert_called_once()
+        mock_create.assert_called_once_with("Area 51", "5", "0_Manhã,3_Noite")
 
 def test_admin_areas_edit_get(client):
     with client.session_transaction() as sess:
@@ -250,9 +261,13 @@ def test_admin_areas_edit_post(client):
     with patch("app.get_area_by_id", return_value={"id": 1, "nome": "Som"}), \
          patch("app.update_area") as mock_update, \
          patch("app.list_areas", return_value=[]):
-        response = client.post("/admin/areas/1/edit", data={"nome": "Som Mod", "max_pessoas": 12}, follow_redirects=True)
+        response = client.post("/admin/areas/1/edit", data={
+            "nome": "Som Mod", 
+            "max_pessoas": 12,
+            "disponibilidade": ["0_Manhã", "0_Noite"]
+        }, follow_redirects=True)
         assert b"atualizada" in response.data.lower()
-        mock_update.assert_called_once()
+        mock_update.assert_called_once_with(1, "Som Mod", "12", "0_Manhã,0_Noite")
 
 def test_admin_areas_delete(client):
     with client.session_transaction() as sess:

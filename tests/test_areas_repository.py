@@ -33,7 +33,7 @@ def test_get_area_by_id(mock_db_conn):
 def test_create_area(mock_db_conn):
     mock_cursor = mock_db_conn.cursor.return_value.__enter__.return_value
     
-    create_area("Mídia", 3)
+    create_area("Mídia", 3, "0_Manhã,0_Noite,4_Noite")
     
     mock_cursor.execute.assert_called_once()
     mock_db_conn.commit.assert_called_once()
@@ -41,7 +41,7 @@ def test_create_area(mock_db_conn):
 def test_update_area(mock_db_conn):
     mock_cursor = mock_db_conn.cursor.return_value.__enter__.return_value
     
-    update_area(1, "Som Editado", 4)
+    update_area(1, "Som Editado", 4, "0_Manhã,0_Noite,4_Noite")
     
     mock_cursor.execute.assert_called_once()
     mock_db_conn.commit.assert_called_once()
