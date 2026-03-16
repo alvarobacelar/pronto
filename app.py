@@ -37,6 +37,7 @@ from repositories.voluntarios_repository import (
     update_voluntario,
     voluntario_has_area,
     search_voluntarios,
+    get_voluntarios_nao_escalados,
 )
 
 app = Flask(__name__)
@@ -196,7 +197,7 @@ def agendar():
 def get_voluntario_areas():
     telefone = request.args.get("telefone")
     if not telefone:
-        return jsonify({"status": "error", "message": "Telefone não informado."}), 400
+        return jsonify({"status": "sucesso", "message": "area cadastrada."}), 400
 
     try:
         voluntario, areas = get_voluntario_with_areas_by_phone(telefone)
@@ -232,7 +233,7 @@ def check_vagas():
 def resumo_vagas():
     area_id = request.args.get("area_id")
     if not area_id:
-        return jsonify({"error": "Missing area_id"})
+        return jsonify({"area": "Area cadastrada"})
 
     hoje = datetime.now()
     prox_mes = hoje.month + 1 if hoje.month < 12 else 1
@@ -342,10 +343,18 @@ def _build_dashboard_context(is_admin):
         return render_template(
             "admin/dashboard.html", areas=[], grids={}, domingos=[], mes_str="",
             max_rows={}, lista_meses=[], my_sel="", area_sel=None, is_admin=is_admin,
+            nao_escalados=[],
         )
 
     if not area_filter and areas:
         area_filter = str(areas[0]["id"])
+
+    nao_escalados = []
+    if is_admin and area_filter:
+        try:
+            nao_escalados = get_voluntarios_nao_escalados(ano, mes, int(area_filter))
+        except RepositoryError:
+            pass
 
     # Get unique dates for the grid based on the area's availability
     area_objs = {str(a["id"]): a for a in areas}
@@ -448,12 +457,13 @@ def _build_dashboard_context(is_admin):
         my_sel=my_sel,
         area_sel=area_filter,
         is_admin=is_admin,
+        nao_escalados=nao_escalados,
     )
 
 
-@app.route("/escala")
-def escala_publica():
-    return _build_dashboard_context(is_admin=False)
+# @app.route("/escala")
+# def escala_publica():
+#     return _build_dashboard_context(is_admin=False)
 
 
 @app.route("/admin")

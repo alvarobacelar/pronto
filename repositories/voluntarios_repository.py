@@ -346,3 +346,29 @@ def search_voluntarios(query, area_id=None, is_responsavel=None):
         raise RepositoryError("Erro ao pesquisar voluntários.") from err
     finally:
         conn.close()
+
+
+def get_voluntarios_nao_escalados(ano, mes, area_id):
+    conn = connect()
+    try:
+        with conn.cursor() as cursor:
+            query = """
+                SELECT v.id, v.nome, v.telefone
+                FROM voluntarios v
+                JOIN voluntario_areas va ON v.id = va.voluntario_id
+                WHERE va.area_id = %s
+                  AND v.id NOT IN (
+                      SELECT voluntario_id 
+                      FROM escalas 
+                      WHERE data LIKE %s
+                  )
+                ORDER BY v.nome ASC
+            """
+            params = (area_id, f"{ano}-{mes:02d}-%")
+            cursor.execute(query, params)
+            return cursor.fetchall()
+    except Exception as err:
+        logger.exception("Erro ao buscar voluntários não escalados: %s", err)
+        raise RepositoryError("Erro ao buscar voluntários não escalados.") from err
+    finally:
+        conn.close()
